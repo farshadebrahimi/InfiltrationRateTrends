@@ -12,6 +12,7 @@ library(fable)
 library(forecast)
 library(lubridate)
 library(fpp2)
+library(EnvStats)
 
 # DB PG14
 con <- dbConnect(odbc::odbc(), dsn = "mars14_data", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"), MaxLongVarcharSize = 8190)
@@ -145,6 +146,15 @@ forecast_values <- forecast(hw_model, h = 48)
 
 plot(forecast_values)
 
+
+# kendallSeasonalTrendTest 
+
+inf_ts["year"] <- year(inf_ts$Date)
+
+kendal_test <- kendallSeasonalTrendTest(Rate ~ season + year, data = inf_ts)
+
+kendal_test$estimate
+kendal_test$p.value
 
 
 
