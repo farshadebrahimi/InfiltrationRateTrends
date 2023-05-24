@@ -169,4 +169,5 @@ kendal_seasonal_summary_sig_neg <- output_seasonal %>%
   filter(p_value < 0.05 & tau_estimate < 0) %>%
   nrow()
 
+write.csv(output_seasonal, file = "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\summary_statistics\\seasonal_mann_kendall_prelim.csv", row.names = FALSE)
 
