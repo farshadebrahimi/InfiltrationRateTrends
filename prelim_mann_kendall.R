@@ -106,15 +106,15 @@ output_seasonal <- metric_comp_df[0,]
 
 
 
-#only consider ow_uid with more than 1 season of data
+#remove the data that has a single type of data-only summers, only winters etc.
 
 single_season_data <- owid_season_unique %>%
   group_by(ow_uid) %>%
   summarise(ow_uid, count_season = n()) %>%
   filter(count_season == 1)
 
-#also remove a ow_id if every season doen't at least have a counterpart in following year
-one_season <- metric_comp_df %>%
+#also remove a ow_id if there is not at least two years of data for a given season
+single_year_season <- metric_comp_df %>%
   select(ow_uid, season, year) %>%
   distinct() %>%
   group_by(ow_uid, season) %>%
@@ -127,7 +127,7 @@ one_season <- metric_comp_df %>%
 
 metric_comp_df <- metric_comp_df %>%
   anti_join(single_season_data , by = "ow_uid") %>%
-  anti_join(one_season , by = "ow_uid")
+  anti_join(single_year_season , by = "ow_uid")
 
 # get unique ids
 owid_unique <- metric_comp_df %>%
