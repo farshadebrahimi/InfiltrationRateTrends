@@ -98,4 +98,75 @@ write.csv(output, file = "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\
 
 
 
+#seasonal version of the test
+
+metric_comp_df["year"] <- year(metric_comp_df$eventdatastart_edt)
+output_seasonal <- metric_comp_df[0,]
+
+
+
+
+#only consider ow_uid with more than 1 season of data
+
+single_season_data <- owid_season_unique %>%
+  group_by(ow_uid) %>%
+  summarise(ow_uid, count_season = n()) %>%
+  filter(count_season == 1)
+
+#also remove a ow_id if every season doen't at least have a counterpart in following year
+one_season <- metric_comp_df %>%
+  select(ow_uid, season, year) %>%
+  distinct() %>%
+  group_by(ow_uid, season) %>%
+  summarise(ow_uid, season, counting = n()) %>%
+  distinct() %>%
+  filter(counting == 1)
+
+
+#remove the single season ow_uid
+
+metric_comp_df <- metric_comp_df %>%
+  anti_join(single_season_data , by = "ow_uid") %>%
+  anti_join(one_season , by = "ow_uid")
+
+# get unique ids
+owid_unique <- metric_comp_df %>%
+  select(ow_uid) %>%
+  distinct()
+
+
+
+
+
+for (i in 1:nrow(owid_unique)) {
+  
+  temp_df <- owid_unique[i, ]
+  
+  metric_df <- metric_comp_df %>%
+    filter(ow_uid == temp_df) 
+  
+  kendall <- kendallSeasonalTrendTest(infiltration_inhr ~ season + year, data = metric_df)
+  
+  metric_df["p_value"] <- kendall$p.value[2]
+  metric_df["tau_estimate"] <- kendall$estimate[1]
+  
+  output_seasonal <- rbind(output_seasonal, metric_df)
+  
+  
+}
+
+#summarize results-significant positive trends
+kendal_seasonal_summary_sig_pos <- output_seasonal %>%
+  select(system_id, ow_uid, p_value, tau_estimate) %>%
+  distinct() %>%
+  filter(p_value < 0.05 & tau_estimate > 0) %>%
+  nrow()
+
+#summarize results-significant negative trends
+kendal_seasonal_summary_sig_neg <- output_seasonal %>%
+  select(system_id, ow_uid, p_value, tau_estimate) %>%
+  distinct() %>%
+  filter(p_value < 0.05 & tau_estimate < 0) %>%
+  nrow()
+
 
