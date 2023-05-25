@@ -1,4 +1,4 @@
-#Mann Kendall Tests for select long term SMPs-this is the simple version on ow_uid/season combo. not seasonal version
+#Mann Kendall Tests for select long term SMPs-Seasonal and the simple version on ow_uid/season combo
 # Farshad Ebrahimi, 5/22/2023
 
 library(dplyr)
