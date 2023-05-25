@@ -96,6 +96,12 @@ kendal_summary_sig_neg <- output %>%
 
 write.csv(output, file = "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\summary_statistics\\mann_kendall_prelim.csv", row.names = FALSE)
 
+#write the summary
+kendal_summary <- output %>%
+  select(system_id, ow_uid, season, p_value, tau_estimate) %>%
+  distinct()
+write.csv(kendal_summary, file = "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\summary_statistics\\mann_kendall_simple_summary.csv", row.names = FALSE)
+
 
 
 #seasonal version of the test
@@ -170,4 +176,11 @@ kendal_seasonal_summary_sig_neg <- output_seasonal %>%
   nrow()
 
 write.csv(output_seasonal, file = "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\summary_statistics\\seasonal_mann_kendall_prelim.csv", row.names = FALSE)
+
+#write summary
+kendal_summary_seasonal <- output_seasonal %>%
+  select(system_id, ow_uid, p_value, tau_estimate) %>%
+  distinct()
+
+write.csv(kendal_summary_seasonal, file = "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\summary_statistics\\kendal_summary_seasonal.csv", row.names = FALSE)
 
