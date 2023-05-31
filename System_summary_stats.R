@@ -416,9 +416,20 @@ event_plot_df$bins <- ordered(event_plot_df$bins,
 
 
 
-event_sum_plot <- ggplot(event_plot_df, aes(x = bins, y = Count, fill = calculationResult)) + 
-  geom_col(col = "black") + theme_minimal() +
-  ggtitle("Infiltration Rate Calculation Result (all systems)") +
+event_plot_labels <- event_plot_df %>% group_by(bins) %>%
+                  mutate(binCount = sum(Count)) %>%
+                  ungroup %>%
+                  mutate(PercentCalcd = round((Count/binCount)*100,1)) %>%
+                  dplyr::filter(calculationResult == "Infil_count") %>%
+                  dplyr::select(bins,PercentCalcd, binCount) 
+
+event_plot_labels$Count <- event_plot_labels$binCount + 1000
+event_plot_labels$label <- paste0("Percent\nCalculated: ",event_plot_labels$PercentCalcd,"%")
+
+
+event_sum_plot <- ggplot(event_plot_df, aes(x = bins, y = Count)) + 
+  geom_col(col = "black", aes(fill = calculationResult)) + theme_minimal() +
+  ggtitle("Infiltration Rate Calculation Result (All Systems)") +
   ylab("Number of Observed Storm Events") + 
   xlab("Event Depth Bins") +
   scale_fill_manual(values = c(wes_palettes$Chevalier1,"#FF6D6E"),
@@ -428,12 +439,10 @@ event_sum_plot <- ggplot(event_plot_df, aes(x = bins, y = Count, fill = calculat
                                "Rain During Descending Limb Error",
                                "Rising Limb in Bottom 6 Inches Error")) +
   guides(fill=guide_legend(title="Infiltration\nCalculation\nResult")) +
-  theme(axis.text.x = element_text(angle = 30, vjust = 0.5))
+  theme(axis.text.x = element_text(angle = 30, vjust = 0.5)) +
+  geom_text(data = event_plot_labels, aes(x = bins, label = label))
 
 event_sum_plot
-
-
-
 
 
 ##### 3.3 Metric Plots for "Good" systems #####
@@ -505,13 +514,15 @@ szn_table <- metrics %>% dplyr::filter(ow_uid %in% good_ows$ow_uid) %>%
             mutate(Month = months(eventdatastart_edt)) %>%
             mutate(YearMonth = yearmonth(eventdatastart_edt)) %>%
             mutate(Year = lubridate::year(eventdatastart_edt))
+# 
+# szn_table <- metrics %>%
+#   left_join(radar_events[,c("radar_event_uid","eventdepth_in", "eventdatastart_edt")], by = "radar_event_uid") %>%
+#   mutate(Month = months(eventdatastart_edt)) %>%
+#   mutate(YearMonth = yearmonth(eventdatastart_edt)) %>%
+#   mutate(Year = lubridate::year(eventdatastart_edt))
 
 #Create Seasons
-szn_table$season <- time2season(szn_table$eventdatastart_edt)
-szn_table$season[szn_table$season == "JJA"] <- "summer"
-szn_table$season[szn_table$season == "DJF"] <- "winter"
-szn_table$season[szn_table$season == "MAM"] <- "spring"
-szn_table$season[szn_table$season == "SON"] <- "autumn"
+szn_table$season <- time2season(szn_table$eventdatastart_edt, out.fmt="seasons")
 
 szn_table <- szn_table %>% dplyr::mutate(YearSeason = paste0(Year," ", season))
 
@@ -537,6 +548,7 @@ mon_sys_count <- szn_table %>% dplyr::select(ow_uid, system_id,infiltration_inhr
   dplyr::select(-max_infil_count)
 
 szn_sys_count <- szn_table %>% dplyr::select(ow_uid, system_id,infiltration_inhr, YearSeason,Year, season) %>%
+  dplyr::filter(is.na(infiltration_inhr) == FALSE) %>%
   dplyr::group_by(ow_uid, system_id, season) %>%
   dplyr::summarise(Infil_count = sum(!is.na(infiltration_inhr)),
                    Year_count = length(unique(Year))) %>%
@@ -549,15 +561,70 @@ szn_sys_count <- szn_table %>% dplyr::select(ow_uid, system_id,infiltration_inhr
 
 
 ##### 4.2 Add minimum requirements for including a site (n >= 10 across years for a season; at least 3 years of the same season) #####
-szn_sys_count_good <- szn_sys_count %>% dplyr::filter(Infil_count >= 10 & Year_count >= 3)
-
+szn_sys_count_good <- szn_sys_count %>% dplyr::filter(Infil_count >= 10 & Year_count >= 3) %>%
+                                        group_by(ow_uid,system_id) %>%
+                                        mutate(SeasonCount = n()) %>%
+                                        ungroup() %>%
+                                        dplyr::filter(SeasonCount >= 2)
 
 
 system_szns <- szn_sys_count_good %>% group_by(ow_uid,system_id) %>%
                summarize(SeasonCount = n())
 
 # systems with 4 seasons meeting the criteria
+sys_4season <- system_szns$system_id[system_szns$SeasonCount == 4]
 
+
+##### 4.3 Cheeky graph summarizing Infiltration Rates by Season for our chosen ow's #####
+test_ows <- system_szns$ow_uid %>% unique
+
+test_sum_graph_df <- ow_infil %>% dplyr::filter(ow_uid %in% test_ows) %>% 
+  dplyr::select(ow_uid,system_id,Infil_count,
+                Infil_NoDescendingLimb_er,
+                Infil_RisingLimb_er,
+                Infil_RainDuringLimb_er,
+                Infil_NegligibleRate_er) %>%
+  dplyr::group_by(system_id) %>%
+  dplyr::mutate(maxinfilcount = max(Infil_count, na.rm = TRUE)) %>%
+  dplyr::filter(Infil_count == maxinfilcount) %>% ungroup() %>%
+  dplyr::select(-maxinfilcount) %>%
+  dplyr::group_by(system_id) %>%
+  tidyr::gather(key = "calculationResult",
+                value = "Count",
+                Infil_count,
+                Infil_NoDescendingLimb_er,
+                Infil_RisingLimb_er,
+                Infil_RainDuringLimb_er,
+                Infil_NegligibleRate_er)
+
+
+test_event_plot_labels <- test_sum_graph_df %>% group_by(system_id) %>%
+  mutate(sysCount = sum(Count)) %>%
+  ungroup %>%
+  mutate(PercentCalcd = round((Count/sysCount)*100,1)) %>%
+  dplyr::filter(calculationResult == "Infil_count") %>%
+  dplyr::select(system_id,PercentCalcd, sysCount) 
+
+test_event_plot_labels$Count <- test_event_plot_labels$sysCount
+test_event_plot_labels$label <- paste0(test_event_plot_labels$PercentCalcd,"%")
+
+
+
+test_sum_plot <- ggplot(good_sum_graph_df, aes(x = system_id, y = Count, fill = calculationResult)) + 
+  geom_col(col = "black") + theme_minimal() +
+  ggtitle("Infiltration Rate Calculation Result\n(Systems with 3+ Years of seasonal data)") +
+  ylab("Number of Observed Storm Events") + 
+  xlab("System ID") +
+  scale_fill_manual(values = c(wes_palettes$Chevalier1,"#FF6D6E"),
+                    labels = c("Calculated Infiltration Rate",
+                               "Neglible Infiltration Rate Error",
+                               "No Data in Bottom 6 Inches Error",
+                               "Rain During Descending Limb Error",
+                               "Rising Limb in Bottom 6 Inches Error")) +
+  guides(fill=guide_legend(title="Infiltration\nCalculation\nResult")) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+test_sum_plot
 
 #### 5.0 Save dataset for Mann-Kendall Test ####
 
