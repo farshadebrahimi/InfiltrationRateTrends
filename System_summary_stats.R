@@ -574,8 +574,18 @@ system_szns <- szn_sys_count_good %>% group_by(ow_uid,system_id) %>%
 # systems with 4 seasons meeting the criteria
 sys_4season <- system_szns$system_id[system_szns$SeasonCount == 4]
 
+##### 4.3 Number of observations by System, Year, and Season #####
 
-##### 4.3 Cheeky graph summarizing Infiltration Rates by Season for our chosen ow's #####
+
+szn_sys_year_count <- szn_table %>% dplyr::select(ow_uid, system_id,infiltration_inhr, YearSeason,Year, season) %>%
+  dplyr::filter(is.na(infiltration_inhr) == FALSE) %>%
+  dplyr::group_by(ow_uid, system_id, Year,season) %>%
+  dplyr::summarise(Infil_count_year_season = sum(!is.na(infiltration_inhr))) %>%
+  dplyr::ungroup()
+
+szn_sys_year_count <- szn_sys_year_count %>% dplyr::filter(system_id %in% system_szns$system_id)
+
+##### 4.4 Cheeky graph summarizing Infiltration Rates by Season for our chosen ow's #####
 test_ows <- system_szns$ow_uid %>% unique
 
 test_sum_graph_df <- ow_infil %>% dplyr::filter(ow_uid %in% test_ows) %>% 
