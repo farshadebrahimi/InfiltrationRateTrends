@@ -153,7 +153,7 @@ for(j in 1:length(ows)){
   # System 1-1 after the beginning of 2018
   if(ow_x == 660)
   {
-    metrics_x <- metrics_x %>% dplyr::filter(eventdatastart_edt > ymd('2018-01-01'))
+    metrics_x <- metrics_x %>% dplyr::filter(eventdatastart_edt < ymd('2018-01-01'))
   }
   
   # 211-1 prior to fix on 7/27/2018
