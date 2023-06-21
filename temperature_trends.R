@@ -191,6 +191,18 @@ for(j in 1:length(ows)){
             xlab("Median Event Temperature (F)") +
             ggtitle(paste0("Infiltration Rate vs Temperature for System ",metrics_x$system_id[1]))
   
+  plot_x <- ggplot(metrics_x, aes(y = infiltration_inhr, x = median)) + 
+    geom_point() + 
+    geom_line(data = model_res_75, aes(y = .fitted, x = median, col = "red"), size = 1.2) +
+    # geom_line(data = model_res_50, aes(y = .fitted, x = median, col = "green3"), size = 1.2) +
+    # geom_line(data = model_res_100, aes(y = .fitted, x = median, col = "gold"), size = 1.2) +
+    geom_line(data = lm_res, aes(y = .fitted, x = median, col = "blue"), size = 1.2) +
+    scale_color_manual(values = c("blue", "red"), labels = c("Linear", "Local\npolynominal")) + 
+    labs(col = "Regression Type") +
+    ylab("Infiltration Rate (in/hr)") + 
+    xlab("Median Event Temperature (F)") +
+    ggtitle(paste0("Infiltration Rate vs Temperature for System ",metrics_x$system_id[1]))
+  
   plot_y <- ggplot(metrics_x, aes(y = infiltration_inhr, x = median)) + 
             geom_point() + 
             # geom_line(data = model_res_75, aes(y = .fitted, x = median, col = "red"), size = 1.2) +
@@ -204,6 +216,7 @@ for(j in 1:length(ows)){
             ggtitle(paste0("Infiltration Rate vs Temperature for System ",metrics_x$system_id[1]))
   
   plot_x
+  plot_y
   
   ##### 2.8 Store Results, Save graph #####
   #save ow model results to list        
@@ -216,7 +229,7 @@ for(j in 1:length(ows)){
   # save plot
   ggsave(filename = paste0(graph_fold,metrics_x$system_id[1],"_",metrics_x$ow_suffix[1],"_models.png"),
          plot = plot_x,
-         height = 8, width = 10, units = "in", dpi = 300)
+         height = 4.5, width = 8, units = "in", dpi = 300)
   
   ggsave(filename = paste0(graph_fold,metrics_x$system_id[1],"_",metrics_x$ow_suffix[1],"_linear_model.png"),
          plot = plot_y,

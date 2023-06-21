@@ -139,6 +139,29 @@ sys_mon_length <- ow_days %>% left_join(distinct(metrics[,c("ow_uid","system_id"
                         summarise(SysMonLengthDays = max(MonLengthDays),
                                   SysMonLengthYears  = round(SysMonLengthDays/365.25, 2))
 
+# create histogram of subsurface, infiltrating systems
+sub_infil_list <- dbGetQuery(mars_con,
+                       "WITH cwl AS (
+                        	SELECT distinct ow_uid from data.tbl_ow_leveldata_raw),
+                        	gi AS (
+                        	SELECT * FROM external.viw_greenit_unified)
+                        
+                        SELECT distinct admin.fun_smp_to_system(o.smp_id) as system_id, gi.lined, gi.surface FROM fieldwork.tbl_ow o
+                        LEFT JOIN cwl
+                        ON  o.ow_uid = cwl.ow_uid
+                        LEFT JOIN gi
+                        ON gi.smp_id = o.smp_id
+                        WHERE cwl.ow_uid IS NOT NULL
+                        
+                        AND o.smp_id LIKE '%-%'
+                        AND gi.lined = FALSE
+                        AND gi.surface = FALSE
+                        ")
+
+hist_sys <- sys_mon_length %>% dplyr::filter(system_id %in% sub_infil_list$system_id)
+
+hist(hist_sys$SysMonLengthYears, ylab = "System Count", xlab = "Monitoring Length (Years)", main = "Histogram of System Monitoring Length")
+
 # trim categories
 cats <- sys_storms %>% dplyr::filter(batch_uid == max(batch_uid, na.rm = TRUE)) %>% dplyr::select(sys_storm_uid, sc_category)
 
@@ -461,13 +484,14 @@ for(i in 1:length(plot_ows)){
   plot_mets <- metrics %>% dplyr::filter(ow_uid == plot_ows[i]) %>%
               left_join(radar_events, by = 'radar_event_uid')
   
-  infil_plot <- ggplot(plot_mets, aes(y = infiltration_inhr, x = eventdatastart_edt, size = eventdepth_in, color = eventdepth_in)) +
+  infil_plot <- ggplot(plot_mets, aes(y = infiltration_inhr, x = eventdatastart_edt, color = eventdepth_in)) +
     geom_point(alpha = 0.5) + ylab("Infiltration Rate (in/hr)") + xlab("Time") + 
-    ggtitle(paste0("Infiltration Rate Over Time for System ",plot_mets$system_id[1]," (",plot_mets$ow_suffix[1],")"))
+    ggtitle(paste0("Infiltration Rate Over Time for System ",plot_mets$system_id[1]," (",plot_mets$ow_suffix[1],")")) +
+    labs(color = "Event Depth (in)")
 
   ggsave(plot = infil_plot,
          filename = paste0(graph_folder,"infil_rate_sys_",plot_mets$system_id[1],"_",plot_mets$ow_suffix[1],".jpg"),
-                width = 10, height = 8, units = "in")
+                width = 8, height = 4.5, units = "in")
          
   
 }
@@ -620,19 +644,25 @@ test_event_plot_labels$label <- paste0(test_event_plot_labels$PercentCalcd,"%")
 
 
 
-test_sum_plot <- ggplot(good_sum_graph_df, aes(x = system_id, y = Count, fill = calculationResult)) + 
-  geom_col(col = "black") + theme_minimal() +
-  ggtitle("Infiltration Rate Calculation Result\n(Systems with 3+ Years of seasonal data)") +
+test_sum_plot <- ggplot(test_sum_graph_df, aes(x = system_id, y = Count)) + 
+  geom_col(col = "black", aes(fill = calculationResult)) + theme_minimal() +
+  ggtitle("Infiltration Rate Calculation Result (Systems with 3+ Years of seasonal data)") +
   ylab("Number of Observed Storm Events") + 
   xlab("System ID") +
+  geom_text(data = test_event_plot_labels, aes(x = system_id, y = (Count+50), label = label)) +
   scale_fill_manual(values = c(wes_palettes$Chevalier1,"#FF6D6E"),
                     labels = c("Calculated Infiltration Rate",
-                               "Neglible Infiltration Rate Error",
-                               "No Data in Bottom 6 Inches Error",
-                               "Rain During Descending Limb Error",
-                               "Rising Limb in Bottom 6 Inches Error")) +
-  guides(fill=guide_legend(title="Infiltration\nCalculation\nResult")) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+                               "Neglible Infiltration Rate",
+                               "No Data in Bottom 6 Inches",
+                               "Rain During Descending Limb",
+                               "Rising Limb in Bottom 6 Inches")) +
+  guides(fill=guide_legend(title="Result:")) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 12),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14),
+        title = element_text(size = 16),
+        legend.position = "top",
+        legend.text = element_text(size = 12))
 
 test_sum_plot
 
@@ -654,3 +684,84 @@ write.csv(file = paste0(folder_loc,"system_seasons_for_analysis.csv"), x = szn_s
 # Save Each
 write.csv(file = paste0(folder_loc,"statistics_by_season.csv"), x = szn_sys_count)
 write.csv(file = paste0(folder_loc,"statistics_by_month.csv"), x = mon_sys_count)
+
+#### 6.0 Additional Plots for Report/Powerpoint ####
+
+##### 6.1 create plot with months of data for each system plot #####
+
+# event dates
+event_dates <- radar_events %>% dplyr::select(radar_event_uid, eventdatastart_edt)
+
+# month/years with data
+month_raster_df <- metrics %>% left_join(event_dates, by = "radar_event_uid") %>%
+                   dplyr::filter(is.na(infiltration_error)) %>%
+                   mutate(Month = month(eventdatastart_edt)) %>%
+                   mutate(Year = year(eventdatastart_edt)) %>%
+                   dplyr::select(system_id, ow_uid, Month, Year) %>%
+                   group_by(system_id,ow_uid,Month,Year) %>%
+                   summarize(InfilCount = n()) %>% ungroup() %>%
+                   distinct() %>% mutate(MonthYear = Year + Month/12,
+                                         Data = TRUE)
+                    
+# trim to "good ows"
+good_raster_df <- month_raster_df %>% dplyr::filter(ow_uid %in% good_ows$ow_uid)
+
+#raster vals
+pal <- wes_palette("Zissou1", 21, type = "continuous")
+
+# yvals
+maj_x_breaks <- c(2012.95833:2022.95833)
+man_x_breaks <- seq(2012.95833,2022.95833, (1/12))
+
+infil_mon_raster <- ggplot(good_raster_df, aes(x = MonthYear, y = system_id, fill = InfilCount)) + geom_raster() +
+                    scale_fill_gradientn(colors = pal) +  
+                    theme_bw() + ylab("System ID") + xlab("Month") +
+                    scale_x_continuous(breaks = maj_x_breaks, minor_breaks = man_x_breaks,
+                                       labels = c(2013:2023)) +
+                    labs(fill = "Infil.\nRates\nObserved") +
+                    theme(axis.text.x = element_text(size = 12),
+                          axis.text.y = element_text(size = 12),
+                          axis.title.x = element_text(size = 14),
+                          axis.title.y = element_text(size = 14)) +
+                    ggtitle("Observed Infiltration Rates for Tested Systems")
+
+infil_mon_raster
+
+# folder
+memo_plots <- "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\05 Memo\\02 Plots\\"
+
+ggsave(filename = paste0(memo_plots,"monitoring_raster_plot.png"),
+       plot = infil_mon_raster, width = 12, height = 6.75, units = "in")
+
+# once more with feeling, for seasons
+
+
+# month/years with data
+szn_raster_df <- metrics %>% left_join(event_dates, by = "radar_event_uid") %>%
+  dplyr::filter(is.na(infiltration_error)) %>%
+  mutate(Season = time2season(eventdatastart_edt)) %>%
+  mutate(Year = year(eventdatastart_edt)) %>%
+  dplyr::select(system_id, ow_uid, Season, Year) %>%
+  group_by(system_id,ow_uid,Season,Year) %>%
+  summarize(InfilCount = n()) %>% ungroup() %>%
+  distinct() %>% mutate(SeasonYear = Year + Season/4,
+                        Data = TRUE)
+
+# trim to "good ows"
+good_raster_df <- szn_raster_df %>% dplyr::filter(ow_uid %in% good_ows$ow_uid)
+
+# yvals
+maj_x_breaks <- c(2012.95833:2022.95833)
+man_x_breaks <- seq(2012.95833,2022.95833, (1/12))
+
+infil_mon_raster <- ggplot(good_raster_df, aes(x = SeasonYear, y = system_id, fill = InfilCount)) + geom_raster() +
+  scale_fill_gradientn(colors = pal) +  
+  theme_bw() + ylab("System ID") + xlab("Season") +
+  scale_x_continuous(breaks = maj_x_breaks, minor_breaks = man_x_breaks,
+                     labels = c(2013:2023)) +
+  theme(axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14)) +
+  ggtitle("Observed Infiltration Rates for Tested Systems")
+
