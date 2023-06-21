@@ -693,8 +693,17 @@ write.csv(file = paste0(folder_loc,"statistics_by_month.csv"), x = mon_sys_count
 event_dates <- radar_events %>% dplyr::select(radar_event_uid, eventdatastart_edt)
 
 # month/years with data
+
+
 month_raster_df <- metrics %>% left_join(event_dates, by = "radar_event_uid") %>%
+  
+                   # filter 1-1 and 211-1
+                   dplyr::filter((system_id == "1-1" & eventdatastart_edt < ymd('2018-01-01')) | system_id != "1-1")  %>%
+                   dplyr::filter((system_id == "211-1" & eventdatastart_edt > ymd('2018-07-28')) | system_id != "211-1") %>%
+                   distinct() %>%
+
                    dplyr::filter(is.na(infiltration_error)) %>%
+                   dplyr::filter(ow_suffix == "OW1") %>%
                    mutate(Month = month(eventdatastart_edt)) %>%
                    mutate(Year = year(eventdatastart_edt)) %>%
                    dplyr::select(system_id, ow_uid, Month, Year) %>%
@@ -703,8 +712,23 @@ month_raster_df <- metrics %>% left_join(event_dates, by = "radar_event_uid") %>
                    distinct() %>% mutate(MonthYear = Year + Month/12,
                                          Data = TRUE)
                     
-# trim to "good ows"
-good_raster_df <- month_raster_df %>% dplyr::filter(ow_uid %in% good_ows$ow_uid)
+# trim to "good systems"
+good_systems <- c("1-1","9-2","20-1", "20-4", "20-8", "366-2",
+                  "1024-1", "1025-1", "1029-1", "8-1", "14-1",
+                  "18-1", "326-1", "398-1", "10-1", "1006-1","187-3",
+                  "211-1","1-3","179-5","9-1","231-2","250-1","398-2","88-1")
+
+good_raster_df <- month_raster_df %>% dplyr::filter(system_id %in% good_systems)
+
+
+
+# factor ranks
+factor_ranks <- good_raster_df %>% group_by(system_id) %>% summarize(StartDate = min(MonthYear)) %>%
+                arrange(desc(StartDate))
+
+good_raster_df$system_id <- factor(good_raster_df$system_id, 
+                                   levels = factor_ranks$system_id)
+
 
 #raster vals
 pal <- wes_palette("Zissou1", 21, type = "continuous")
@@ -723,7 +747,7 @@ infil_mon_raster <- ggplot(good_raster_df, aes(x = MonthYear, y = system_id, fil
                           axis.text.y = element_text(size = 12),
                           axis.title.x = element_text(size = 14),
                           axis.title.y = element_text(size = 14)) +
-                    ggtitle("Observed Infiltration Rates for Tested Systems")
+                    ggtitle("Monitoring Period for Tested Systems")
 
 infil_mon_raster
 
@@ -733,35 +757,6 @@ memo_plots <- "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special
 ggsave(filename = paste0(memo_plots,"monitoring_raster_plot.png"),
        plot = infil_mon_raster, width = 12, height = 6.75, units = "in")
 
-# once more with feeling, for seasons
 
-
-# month/years with data
-szn_raster_df <- metrics %>% left_join(event_dates, by = "radar_event_uid") %>%
-  dplyr::filter(is.na(infiltration_error)) %>%
-  mutate(Season = time2season(eventdatastart_edt)) %>%
-  mutate(Year = year(eventdatastart_edt)) %>%
-  dplyr::select(system_id, ow_uid, Season, Year) %>%
-  group_by(system_id,ow_uid,Season,Year) %>%
-  summarize(InfilCount = n()) %>% ungroup() %>%
-  distinct() %>% mutate(SeasonYear = Year + Season/4,
-                        Data = TRUE)
-
-# trim to "good ows"
-good_raster_df <- szn_raster_df %>% dplyr::filter(ow_uid %in% good_ows$ow_uid)
-
-# yvals
-maj_x_breaks <- c(2012.95833:2022.95833)
-man_x_breaks <- seq(2012.95833,2022.95833, (1/12))
-
-infil_mon_raster <- ggplot(good_raster_df, aes(x = SeasonYear, y = system_id, fill = InfilCount)) + geom_raster() +
-  scale_fill_gradientn(colors = pal) +  
-  theme_bw() + ylab("System ID") + xlab("Season") +
-  scale_x_continuous(breaks = maj_x_breaks, minor_breaks = man_x_breaks,
-                     labels = c(2013:2023)) +
-  theme(axis.text.x = element_text(size = 12),
-        axis.text.y = element_text(size = 12),
-        axis.title.x = element_text(size = 14),
-        axis.title.y = element_text(size = 14)) +
-  ggtitle("Observed Infiltration Rates for Tested Systems")
+#### 7.0 Where are the new sites that we want? ####
 
