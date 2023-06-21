@@ -6,6 +6,8 @@
 #### 0.5 library packages ####
 
 
+write <- FALSE
+
 #standard
 library(tidyverse)
 library(ggplot2)
@@ -24,6 +26,8 @@ library(tsibble)
 library(feasts)
 library(hydroTSM)
 
+# Define `not in`
+`%!in%` = Negate(`%in%`)
 
 
 #### 1.0 Read metrics, system storms, database ####
@@ -220,12 +224,17 @@ ow_draindown <- metrics %>% group_by(ow_uid) %>% summarize(Storm_Count = n(),
 
 
 folder_loc <- "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\summary_statistics\\"
-# Write output
-write.csv(x = ow_infil,
-          file = paste0(folder_loc,"ow_infiltration_summary.csv"))
 
-write.csv(x = ow_draindown,
-          file = paste0(folder_loc,"ow_draindown_summary.csv"))
+
+# Write output
+if(write == TRUE){
+  write.csv(x = ow_infil,
+            file = paste0(folder_loc,"ow_infiltration_summary.csv"))
+  
+  write.csv(x = ow_draindown,
+            file = paste0(folder_loc,"ow_draindown_summary.csv"))
+}
+
 
 
 
@@ -461,8 +470,12 @@ event_sum_plot <- ggplot(event_plot_df, aes(x = bins, y = Count)) +
                                "No Data in Bottom 6 Inches Error",
                                "Rain During Descending Limb Error",
                                "Rising Limb in Bottom 6 Inches Error")) +
-  guides(fill=guide_legend(title="Infiltration\nCalculation\nResult")) +
-  theme(axis.text.x = element_text(angle = 30, vjust = 0.5)) +
+  guides(fill=guide_legend(title="Result:")) +
+  theme(axis.text.x = element_text(angle = 30, vjust = 1, size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14),
+        legend.position = "top") +
   geom_text(data = event_plot_labels, aes(x = bins, label = label))
 
 event_sum_plot
@@ -487,7 +500,7 @@ for(i in 1:length(plot_ows)){
   infil_plot <- ggplot(plot_mets, aes(y = infiltration_inhr, x = eventdatastart_edt, color = eventdepth_in)) +
     geom_point(alpha = 0.5) + ylab("Infiltration Rate (in/hr)") + xlab("Time") + 
     ggtitle(paste0("Infiltration Rate Over Time for System ",plot_mets$system_id[1]," (",plot_mets$ow_suffix[1],")")) +
-    labs(color = "Event Depth (in)")
+    labs(color = "Event Depth (in)") + ylim(0,5)
 
   ggsave(plot = infil_plot,
          filename = paste0(graph_folder,"infil_rate_sys_",plot_mets$system_id[1],"_",plot_mets$ow_suffix[1],".jpg"),
@@ -668,22 +681,24 @@ test_sum_plot
 
 #### 5.0 Save dataset for Mann-Kendall Test ####
 
-##### 5.1 Save a copy of the metrics with the new -920 results incorporated #####
-
-met_folder <- "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\Infiltration Rate Recalcs\\"
-
-write.csv(file = paste0(met_folder,"metrics_with_recalcs.csv"), x = metrics)
-
-##### 5.2 Save a copy of the summary of the seasonality for review #####
-
-write.csv(file = paste0(folder_loc,"system_seasons_for_analysis.csv"), x = szn_sys_count_good)
-
-
-##### 5.3 Unformatted summary of  seasonality and months for review #####
-
-# Save Each
-write.csv(file = paste0(folder_loc,"statistics_by_season.csv"), x = szn_sys_count)
-write.csv(file = paste0(folder_loc,"statistics_by_month.csv"), x = mon_sys_count)
+if(write == TRUE){
+  ##### 5.1 Save a copy of the metrics with the new -920 results incorporated #####
+  
+  met_folder <- "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\Infiltration Rate Recalcs\\"
+  
+  write.csv(file = paste0(met_folder,"metrics_with_recalcs.csv"), x = metrics)
+  
+  ##### 5.2 Save a copy of the summary of the seasonality for review #####
+  
+  write.csv(file = paste0(folder_loc,"system_seasons_for_analysis.csv"), x = szn_sys_count_good)
+  
+  
+  ##### 5.3 Unformatted summary of  seasonality and months for review #####
+  
+  # Save Each
+  write.csv(file = paste0(folder_loc,"statistics_by_season.csv"), x = szn_sys_count)
+  write.csv(file = paste0(folder_loc,"statistics_by_month.csv"), x = mon_sys_count)
+}
 
 #### 6.0 Additional Plots for Report/Powerpoint ####
 
@@ -743,10 +758,12 @@ infil_mon_raster <- ggplot(good_raster_df, aes(x = MonthYear, y = system_id, fil
                     scale_x_continuous(breaks = maj_x_breaks, minor_breaks = man_x_breaks,
                                        labels = c(2013:2023)) +
                     labs(fill = "Infil.\nRates\nObserved") +
-                    theme(axis.text.x = element_text(size = 12),
-                          axis.text.y = element_text(size = 12),
-                          axis.title.x = element_text(size = 14),
-                          axis.title.y = element_text(size = 14)) +
+                    theme(axis.text.x = element_text(size = 14),
+                          axis.text.y = element_text(size = 14),
+                          legend.title = element_text(size = 12),
+                          axis.title.x = element_text(size = 16),
+                          axis.title.y = element_text(size = 16),
+                          title = element_text(size = 18)) +
                     ggtitle("Monitoring Period for Tested Systems")
 
 infil_mon_raster
@@ -755,8 +772,98 @@ infil_mon_raster
 memo_plots <- "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\05 Memo\\02 Plots\\"
 
 ggsave(filename = paste0(memo_plots,"monitoring_raster_plot.png"),
-       plot = infil_mon_raster, width = 12, height = 6.75, units = "in")
+       plot = infil_mon_raster, width = 10, height = 6.8, units = "in", dpi = 300)
 
 
 #### 7.0 Where are the new sites that we want? ####
 
+##### 7.1 Visualize Raster for entire dataset #####
+# Take a look at the whole program just to see what looks viable
+
+# event dates
+event_dates <- radar_events %>% dplyr::select(radar_event_uid, eventdatastart_edt)
+
+month_raster_df <- metrics %>% left_join(event_dates, by = "radar_event_uid") %>%
+  
+  # filter 1-1 and 211-1
+  dplyr::filter((system_id == "1-1" & eventdatastart_edt < ymd('2018-01-01')) | system_id != "1-1")  %>%
+  dplyr::filter((system_id == "211-1" & eventdatastart_edt > ymd('2018-07-28')) | system_id != "211-1") %>%
+  distinct() %>%
+  
+  dplyr::filter(is.na(infiltration_error)) %>%
+  dplyr::filter(ow_suffix == "OW1") %>%
+  mutate(Month = month(eventdatastart_edt)) %>%
+  mutate(Year = year(eventdatastart_edt)) %>%
+  dplyr::select(system_id, ow_uid, Month, Year) %>%
+  group_by(system_id,ow_uid,Month,Year) %>%
+  summarize(InfilCount = n()) %>% ungroup() %>%
+  distinct() %>% mutate(MonthYear = Year + Month/12,
+                        Data = TRUE)
+
+factor_ranks <- month_raster_df %>% group_by(system_id) %>% summarize(StartDate = min(MonthYear)) %>%
+  arrange(desc(StartDate))
+
+month_raster_df$system_id <- factor(month_raster_df$system_id, 
+                                   levels = factor_ranks$system_id)
+
+
+#raster vals
+pal <- wes_palette("Zissou1", 21, type = "continuous")
+
+# yvals
+maj_x_breaks <- c(2012.95833:2022.95833)
+man_x_breaks <- seq(2012.95833,2022.95833, (1/12))
+
+infil_mon_raster <- ggplot(month_raster_df, aes(x = MonthYear, y = system_id, fill = InfilCount)) + geom_raster() +
+  scale_fill_gradientn(colors = pal) +  
+  theme_dark() + ylab("System ID") + xlab("Month") +
+  scale_x_continuous(breaks = maj_x_breaks, minor_breaks = man_x_breaks,
+                     labels = c(2013:2023)) +
+  labs(fill = "Infil.\nRates\nObserved") +
+  theme(axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title.x = element_text(size = 14),
+        axis.title.y = element_text(size = 14)) +
+  ggtitle("Monitoring Period for All Systems")
+
+infil_mon_raster
+
+
+##### 7.2 The "near misses". Ranked by first date and Number of observations #####
+
+
+# First Infil Date
+first_infils <- metrics %>% left_join(event_dates, by = "radar_event_uid") %>% 
+                            dplyr::group_by(system_id) %>% 
+                            summarize(FirstInfil = min(eventdatastart_edt)) %>%
+                            ungroup()
+                            
+# Month Counts
+mon_counts <- month_raster_df %>% group_by(ow_uid, system_id) %>%
+                                  summarize(Month_count = n(),
+                                            InfilCount = sum(InfilCount)) %>%
+                                  ungroup()
+            
+# Near miss list
+near_miss_list <- sys_mon_length %>% dplyr::left_join(first_infils, by = "system_id") %>%
+                                     dplyr::left_join(mon_counts, by = "system_id") %>%
+                                     dplyr::filter(!is.na(Month_count))
+
+# Filter out the hits
+near_miss_list <- near_miss_list %>% dplyr::filter(ow_uid %!in% good_ows$ow_uid)
+
+##### 7.3 Set the Criteria #####
+# Minimum length of monitoring: 1 year
+min_length <- 0.5
+
+# Minimum month count
+min_month <- 6
+
+# Maximum start date
+max_start <- ymd("2020-07-01")
+
+
+##### 7.4 Apply the criteria #####
+near_miss_list <- near_miss_list %>% dplyr::filter(SysMonLengthYears >= min_length) %>%
+                                     dplyr::filter(Month_count >= min_month) %>%
+                                     dplyr::filter(FirstInfil < max_start)
