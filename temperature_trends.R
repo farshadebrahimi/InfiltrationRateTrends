@@ -214,6 +214,21 @@ for(j in 1:length(ows)){
             ylab("Infiltration Rate (in/hr)") + 
             xlab("Median Event Temperature (F)") +
             ggtitle(paste0("Infiltration Rate vs Temperature for System ",metrics_x$system_id[1]))
+
+  
+  # create three plots to show residauls, fitted, infil on same graph
+  infil_plot <- ggplot(lm_res, aes(x = eventdatastart_edt, y = infiltration_inhr)) + geom_point() +
+    scale_y_continuous(limits = c(-1,5)) + ylab("Infiltration Rate (in/hr)") + xlab("") + ggtitle("Results of Temperature Regression")
+  
+  fit_plot <- ggplot(sys_20_resid, aes(x = eventdatastart_edt, y = fitted_value)) + geom_point(col = "blue") +
+    scale_y_continuous(limits = c(-1,5)) + ylab("Fitted Value (in/hr)") + xlab("")
+  
+  resid_plot <- ggplot(sys_20_resid, aes(x = eventdatastart_edt, y = residual)) + geom_point(col = "red") +
+    scale_y_continuous(limits = c(-1,5)) + ylab("Residuall (in/hr)") + xlab("Date")
+  
+  ggarrange(infil_plot, fit_plot, resid_plot, ncol = 1, nrow = 3)
+  
+  
   
   plot_x
   plot_y
