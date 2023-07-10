@@ -455,7 +455,7 @@ event_plot_labels <- event_plot_df %>% group_by(bins) %>%
                   dplyr::filter(calculationResult == "Infil_count") %>%
                   dplyr::select(bins,PercentCalcd, binCount) 
 
-event_plot_labels$Count <- event_plot_labels$binCount + 1000
+event_plot_labels$Count <- event_plot_labels$binCount + 1400
 event_plot_labels$label <- paste0("Percent\nCalculated: ",event_plot_labels$PercentCalcd,"%")
 
 
@@ -471,7 +471,7 @@ event_sum_plot <- ggplot(event_plot_df, aes(x = bins, y = Count)) +
                                "Rain During Descending Limb Error",
                                "Rising Limb in Bottom 6 Inches Error")) +
   guides(fill=guide_legend(title="Result:")) +
-  theme(axis.text.x = element_text(angle = 30, vjust = 1, size = 12),
+  theme(axis.text.x = element_text(angle = 30, vjust = 0.75, size = 12),
         axis.text.y = element_text(size = 12),
         axis.title.x = element_text(size = 14),
         axis.title.y = element_text(size = 14),
@@ -480,6 +480,7 @@ event_sum_plot <- ggplot(event_plot_df, aes(x = bins, y = Count)) +
 
 event_sum_plot
 
+ggsave(filename = "\\\\pwdoows\\OOWS\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\05 Memo\\02 Plots\\infil_calc_summary.jpg", plot = event_sum_plot, width = 12, height = 5.45, units = "in")
 
 ##### 3.3 Metric Plots for "Good" systems #####
 # raw, infil plots meeting criteria

@@ -11,6 +11,7 @@ library(data.table)
 #plot
 library(ggplot2)
 library(gganimate)
+library(ggpubr)
 
 #Database Stuff
 library(RODBC)
@@ -201,7 +202,15 @@ for(j in 1:length(ows)){
     labs(col = "Regression Type") +
     ylab("Infiltration Rate (in/hr)") + 
     xlab("Median Event Temperature (F)") +
-    ggtitle(paste0("Infiltration Rate vs Temperature for System ",metrics_x$system_id[1]))
+    ggtitle(paste0("Infiltration Rate vs Temperature for System ",metrics_x$system_id[1])) +
+    theme(axis.text.x = element_text(size = 12),
+          axis.title.x = element_text(size = 14),
+          axis.text.y = element_text(size = 12),
+          axis.title.y = element_text(size = 14),
+          legend.position = "top",
+          title = element_text(size = 16),
+          legend.text = element_text(size = 10),
+          legend.title = element_text(size = 12))
   
   plot_y <- ggplot(metrics_x, aes(y = infiltration_inhr, x = median)) + 
             geom_point() + 
@@ -213,25 +222,34 @@ for(j in 1:length(ows)){
             labs(col = "Model Type") +
             ylab("Infiltration Rate (in/hr)") + 
             xlab("Median Event Temperature (F)") +
-            ggtitle(paste0("Infiltration Rate vs Temperature for System ",metrics_x$system_id[1]))
+            ggtitle(paste0("Infiltration Rate vs Temperature for System ",metrics_x$system_id[1])) +
+            theme(axis.text.x = element_text(size = 12),
+                  axis.title.x = element_text(size = 14),
+                  axis.text.y = element_text(size = 12),
+                  axis.title.y = element_text(size = 14),
+                  legend.position = "top",
+                  title = element_text(size = 16),
+                  legend.text = element_text(size = 10),
+                  legend.title = element_text(size = 12))
 
   
   # create three plots to show residauls, fitted, infil on same graph
   infil_plot <- ggplot(lm_res, aes(x = eventdatastart_edt, y = infiltration_inhr)) + geom_point() +
-    scale_y_continuous(limits = c(-1,5)) + ylab("Infiltration Rate (in/hr)") + xlab("") + ggtitle("Results of Temperature Regression")
+    scale_y_continuous(limits = c(-1,5)) + ylab("Infil. Rate (in/hr)") + xlab("") + ggtitle(paste0("Temperature Regression for ",metrics_x$system_id[1]))
   
-  fit_plot <- ggplot(sys_20_resid, aes(x = eventdatastart_edt, y = fitted_value)) + geom_point(col = "blue") +
+  fit_plot <- ggplot(lm_res %>% dplyr::filter(!is.na(.resid)), aes(x = eventdatastart_edt, y = .fitted)) + geom_point(col = "blue") +
     scale_y_continuous(limits = c(-1,5)) + ylab("Fitted Value (in/hr)") + xlab("")
   
-  resid_plot <- ggplot(sys_20_resid, aes(x = eventdatastart_edt, y = residual)) + geom_point(col = "red") +
+  resid_plot <- ggplot(lm_res, aes(x = eventdatastart_edt, y = .resid)) + geom_point(col = "red") +
     scale_y_continuous(limits = c(-1,5)) + ylab("Residuall (in/hr)") + xlab("Date")
   
-  ggarrange(infil_plot, fit_plot, resid_plot, ncol = 1, nrow = 3)
+  plot_z <- ggarrange(infil_plot, fit_plot, resid_plot, ncol = 1, nrow = 3)
   
   
   
   plot_x
   plot_y
+  plot_z
   
   ##### 2.8 Store Results, Save graph #####
   #save ow model results to list        
@@ -249,6 +267,10 @@ for(j in 1:length(ows)){
   ggsave(filename = paste0(graph_fold,metrics_x$system_id[1],"_",metrics_x$ow_suffix[1],"_linear_model.png"),
          plot = plot_y,
          height = 8, width = 10, units = "in", dpi = 300)
+  
+  ggsave(filename = paste0(graph_fold,metrics_x$system_id[1],"_",metrics_x$ow_suffix[1],"_linear_residuals.png"),
+         plot = plot_z,
+         height = 4.5, width = 8, units = "in", dpi = 300)
 
   
 }
@@ -325,7 +347,7 @@ colnames(model_df) <- c("ow_uid",
 
 
 write_results <- dbWriteTable(mars_con,
-                              DBI::SQL("data.tbl_infil_temp_models"),
+                              DBI::SQL("metrics.tbl_infil_temp_models"),
                               model_df,
                               append = TRUE,
                               row.names = FALSE)
