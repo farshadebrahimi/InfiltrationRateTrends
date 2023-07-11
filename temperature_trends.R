@@ -16,9 +16,13 @@ library(ggpubr)
 #Database Stuff
 library(RODBC)
 library(odbc)
+library(rlang)
 
 #stat stuff
 library(broom)
+
+#define not in
+`%!in%` <- Negate(`%in%`)
 
 #### 0.2 Database Connections and file extensions ####
 # connect
@@ -26,8 +30,15 @@ mars_con <- dbConnect(odbc::odbc(), "mars14_data")
 
 
 # read best metrics
-folder_loc <- "\\\\pwdoows\\OOWS\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\"
-metrics_raw <- read.csv(paste0(folder_loc,"sump depth recalcs\\20230607_sumpdepthrecalc_noPoplar_w_Systemid.csv"))
+folder_loc <- "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\"
+
+#old
+# metrics_old <- read.csv(paste0(folder_loc,"sump depth recalcs\\20230607_sumpdepthrecalc_noPoplar_w_Systemid.csv"))
+
+#current
+metrics_raw <- read.csv(paste0(folder_loc,"sump depth recalcs\\20230711 rerun\\everythingv2.csv"))
+metrics_raw <- metrics_raw %>% distinct()
+
 
 
 # read the ow's we want
@@ -92,7 +103,7 @@ for(j in 1:length(ows)){
   ow_x <- ows[j]
   metrics_x <- metrics %>% dplyr::filter(ow_uid == ow_x)
   temper_data <- as.data.frame(matrix(ncol = 5))
-  colnames(temper_data) <- c("temperature_uid", "temperature_degf", "ow_uid","dtime_est","radar_event_uid" )
+  colnames(temper_data) <- c("temperature_uid", "temp_f", "ow_uid","dtime_est","radar_event_uid" )
   
   temper_data_x <- dbGetQuery(mars_con, paste0("SELECT * FROM data.tbl_temperature WHERE ow_uid = ",ow_x))
   temper_data_x$dtime_est <- ymd_hms(temper_data_x$dtime_est, tz = "EST")
@@ -116,7 +127,7 @@ for(j in 1:length(ows)){
 
   }  
         # # attempt to animate moving temperature for indiviudal storms
-        # ggplot(temper_data, aes(x = dtime_est, y = temperature_degf)) + geom_point() +
+        # ggplot(temper_data, aes(x = dtime_est, y = temp_f)) + geom_point() +
         #   scale_y_continuous(limits = c(35, 85)) + ylab("Temperature (Deg. F)") +
         #   xlab("Date Time") +
         #   ## gganimate attempt
@@ -126,18 +137,18 @@ for(j in 1:length(ows)){
         #   ease_aes('linear')
   
   # this was choking the whole damn thing
-  # ggplot(temper_data, aes(group = radar_event_uid, y = temperature_degf, col = temperature_degf)) + geom_boxplot()
+  # ggplot(temper_data, aes(group = radar_event_uid, y = temp_f, col = temp_f)) + geom_boxplot()
   
   
   ##### 2.5 Summarize temperature data for each radar event #####  
   
   summary_data <- temper_data %>% group_by(radar_event_uid) %>%
-                  summarize(mean = mean(temperature_degf, na.rm = TRUE),
-                            median = median(temperature_degf, na.rm = TRUE),
-                            quartile_low = quantile(temperature_degf, na.rm = TRUE)[2],
-                            quartile_high = quantile(temperature_degf, na.rm = TRUE)[4],
+                  summarize(mean = mean(temp_f, na.rm = TRUE),
+                            median = median(temp_f, na.rm = TRUE),
+                            quartile_low = quantile(temp_f, na.rm = TRUE)[2],
+                            quartile_high = quantile(temp_f, na.rm = TRUE)[4],
                             IQR = quartile_high - quartile_low,
-                            diff = max(temperature_degf, na.rm = TRUE) - min(temperature_degf, na.rm = TRUE)
+                            diff = max(temp_f, na.rm = TRUE) - min(temp_f, na.rm = TRUE)
                             )
   
   metrics_x <- metrics_x %>% left_join(summary_data, by = "radar_event_uid")
@@ -163,6 +174,9 @@ for(j in 1:length(ows)){
     metrics_x <- metrics_x %>% dplyr::filter(eventdatastart_edt > ymd('2018-07-28'))
   }
 
+  # distinct
+  metrics_x <- metrics_x %>% distinct()
+  
   
   ##### 2.7 Regressions and regression plots #####
   # LOESS
@@ -223,14 +237,14 @@ for(j in 1:length(ows)){
             ylab("Infiltration Rate (in/hr)") + 
             xlab("Median Event Temperature (F)") +
             ggtitle(paste0("Infiltration Rate vs Temperature for System ",metrics_x$system_id[1])) +
-            theme(axis.text.x = element_text(size = 12),
-                  axis.title.x = element_text(size = 14),
-                  axis.text.y = element_text(size = 12),
-                  axis.title.y = element_text(size = 14),
+            theme(axis.text.x = element_text(size = 10),
+                  axis.title.x = element_text(size = 12),
+                  axis.text.y = element_text(size = 10),
+                  axis.title.y = element_text(size = 12),
                   legend.position = "top",
-                  title = element_text(size = 16),
-                  legend.text = element_text(size = 10),
-                  legend.title = element_text(size = 12))
+                  title = element_text(size = 14),
+                  legend.text = element_text(size = 8),
+                  legend.title = element_text(size = 10))
 
   
   # create three plots to show residauls, fitted, infil on same graph
@@ -263,11 +277,11 @@ for(j in 1:length(ows)){
   ggsave(filename = paste0(graph_fold,metrics_x$system_id[1],"_",metrics_x$ow_suffix[1],"_models.png"),
          plot = plot_x,
          height = 4.5, width = 8, units = "in", dpi = 300)
-  
+
   ggsave(filename = paste0(graph_fold,metrics_x$system_id[1],"_",metrics_x$ow_suffix[1],"_linear_model.png"),
          plot = plot_y,
-         height = 8, width = 10, units = "in", dpi = 300)
-  
+         height = 3.7, width = 5.47, units = "in", dpi = 300)
+
   ggsave(filename = paste0(graph_fold,metrics_x$system_id[1],"_",metrics_x$ow_suffix[1],"_linear_residuals.png"),
          plot = plot_z,
          height = 4.5, width = 8, units = "in", dpi = 300)
@@ -306,7 +320,7 @@ for(j in 1:length(ows)){
 #                               row.names = FALSE)
 
 
-#### 4.0 Save LOESS and LM models ####
+#### 4.0 Write LOESS and LM models ####
 
 model_values <- rbindlist(temp_metrics)
 
@@ -344,6 +358,30 @@ colnames(model_df) <- c("ow_uid",
                         "fitted_value",
                         "residual")
 
+
+##### 4.1 find latest batch #####
+
+# existing models
+ex_models <- dbGetQuery(mars_con, "SELECT * FROM metrics.tbl_infil_temp_models")
+
+last_batch <- 
+if(
+  is.finite(max(ex_models$batch_uid, na.rm = TRUE))
+){ max(ex_models$batch_uid, na.rm = TRUE) + 0 } else(
+  0
+)
+
+new_batch <- last_batch + 1
+
+# latest batch
+model_df$batch_uid <- new_batch
+
+# # check for the duplicates
+# # hash new
+# for(i in 1:nrow(model_df)){ model_df$hash[i] <- hash(paste(model_df[i,], collapse = ""))}
+# 
+# # hash old
+# for(i in 1:nrow(ex_models)){ ex_models$hash[i] <- hash(paste(ex_models[i,], collapse = ""))}
 
 
 write_results <- dbWriteTable(mars_con,
