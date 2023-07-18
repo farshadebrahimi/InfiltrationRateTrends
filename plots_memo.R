@@ -19,6 +19,9 @@
   library(plyr)
   library(tidyverse)
   library(formattable)
+  
+  #create negate of %in%
+  `%!in%` = Negate(`%in%`)
 
 
   options(scipen = 999)
@@ -27,7 +30,7 @@
   con <- dbConnect(odbc::odbc(), dsn = "mars14_data", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"), MaxLongVarcharSize = 8190)
 
 # Residuals and model stats from Brian
-  infil_temp_models <- dbGetQuery(con, "SELECT * FROM data.tbl_infil_temp_models where model_type = 'linear'")
+  infil_temp_models <- dbGetQuery(con, "SELECT * FROM metrics.tbl_infil_temp_models where model_type = 'linear'")
 
 # Get OW_UID-System_ID
   ow <- dbGetQuery(con, "SELECT *,admin.fun_smp_to_system(smp_id) as system_id FROM fieldwork.tbl_ow")
@@ -63,9 +66,11 @@
     na.omit() %>%
     distinct()
 
-# mann-kendall test
+  # mann-kendall test
   metric_residual["p_value"] <- NA
   metric_residual["slope_estimate"] <- NA
+  metric_residual["tau"] <- NA
+  metric_residual["intercept_estimate"] <- NA
   
   output <- metric_residual[0,]
   
@@ -81,14 +86,17 @@
     kendall <- kendallTrendTest(residual ~ eventdatastart_edt , data = metric_df)
     
     metric_df["p_value"] <- kendall$p.value
+    metric_df["intercept_estimate"] <- kendall$estimate[3]
     metric_df["slope_estimate"] <- kendall$estimate[2]
+    metric_df["tau"] <- kendall$estimate[1]
+    
     
     output <- rbind(output, metric_df)
     
   }
   
   output <- output %>%
-    select(ow_uid, p_value, slope_estimate) %>%
+    select(ow_uid, p_value, slope_estimate, intercept_estimate, tau) %>%
     distinct()
 
 ### Write to db
@@ -105,15 +113,6 @@
     nrow()
 
 
-
-#add the categories
-  kendal_categories <- output %>%
-    inner_join(ow, by = "ow_uid") %>%
-    inner_join(System_Categories_trend, by = "system_id") %>%
-    mutate(trend = case_when(p_value < 0.05 & slope_estimate > 0 ~ "sig_positive", 
-                             p_value < 0.05 & slope_estimate < 0 ~ "sig_negative",
-                             p_value > 0.05 & slope_estimate > 0 ~ "insig_positive",
-                             p_value > 0.05 & slope_estimate < 0 ~ "insig_negative"))
   
 
 ### Stacked SC bar chart
@@ -122,10 +121,10 @@
   kendal_categories <- output %>%
     inner_join(ow, by = "ow_uid") %>%
     inner_join(System_Categories_trend, by = "system_id") %>%
-    mutate(trend = case_when(p_value < 0.05 & slope_estimate > 0 ~ "Significant_Positive", 
-                             p_value < 0.05 & slope_estimate < 0 ~ "Significant_Negative",
-                             p_value > 0.05 & slope_estimate > 0 ~ "Insignificant_Positive",
-                             p_value > 0.05 & slope_estimate < 0 ~ "Insignificant_Negative")) %>%
+    mutate(trend = case_when(p_value <= 0.2 & slope_estimate > 0 ~ "Significant_Positive", 
+                             p_value <= 0.2 & slope_estimate < 0 ~ "Significant_Negative",
+                             p_value > 0.2 & slope_estimate > 0 ~ "Insignificant_Positive",
+                             p_value > 0.2 & slope_estimate < 0 ~ "Insignificant_Negative")) %>%
     filter(categories != "Excluded")
   
   # Calculate the count of each trend within each category
@@ -160,7 +159,7 @@
   
   
   mk_table_plot_df <- mk_table %>%
-    mutate(trend = case_when(p_value < 0.05 ~ "Statistically Significant", 
+    mutate(trend = case_when(p_value <= 0.05 ~ "Statistically Significant", 
                              p_value > 0.05 ~ "Statistically Insignificant")) %>%
     arrange(slope_estimate)
   
@@ -213,15 +212,22 @@
   table_df <- mk_table_plot_df_norm %>%
     inner_join(years_data, by = "system_id") %>%
     inner_join(smp_types, by = "smp_id") %>%
-    select(smp_id, smp_smptype, SysMonLengthYears, categories, slope_estimate, ave_rate ,norm, p_value) %>%
+    select(smp_id, categories, slope_estimate, ave_rate ,norm, p_value) %>%
     arrange(norm)
-  names(table_df) <- c("SMP ID","SMP Type","Years of Data","SC Category", "Theil-Sen Slope (in/hr.yr)","Average Observed Rate (in/hr)", "Normalized Slope (1/yr)", "P-value")
- 
+  #add asterisk to drainage wells
+  table_df <- table_df %>%
+    mutate(smp_id = case_when(smp_id %in% c("1029-1-1", "1024-1-1", "1025-1-1") ~ paste0(smp_id, "*"),
+                              smp_id %!in% c("1029-1-1", "1024-1-1", "1025-1-1") ~ smp_id))
+  
+  names(table_df) <- c("SMP ID","SC Category", "Theil-Sen Slope (in/hr.yr)","Averaged Rate (in/hr)", "Normalized Slope (1/yr)", "P-value")
+  #names(table_df) <- c("<center>SMP ID</center>", "<center>SMP Type</center>", "<center>SC Category</center>", "<center>Theil-Sen Slope (in/hr.yr)</center>", "<center>Averaged Rate (in/hr)</center>", "<center>Normalized Slope (1/yr)</center>", "<center>P-value</center>")
+  
 
   bold <- formatter(.tag = "span", style = function(x) style(
     display = "block", 
     padding = "0 4px", 
-    font.weight = "bold"))
+    font.weight = "bold"
+   ))
   
   costum_format <- formatter(.tag = "span", style = function(x) style(
     display = "block",
@@ -229,7 +235,9 @@
     font.weight = "bold",
     `border-radius` = "4px",
     `background-color` = csscolor(gradient(abs(as.numeric(x)),  "white", "red")),
-    color = "black"))
+    color = "black"
+
+  ))
 
 
 
@@ -249,14 +257,15 @@
     font.weight = "bold",
     `border-radius` = "4px", 
     `background-color` = ifelse(x == "No SC Confirmed" | x == "No SC Suspected" , "green","red2") ,
-    color = ifelse(x == "No SC Confirmed" | x == "No SC Suspected", "white","black")))
+    color = ifelse(x == "No SC Confirmed" | x == "No SC Suspected", "white","black")
+    ))
   
   formattable(table_df, 
-              align =c("c","c","c"),
+              align = c("c", "c", "c", "c", "c", "c"),
               list(
                 "SMP ID" = bold,
                 "Theil-Sen Slope (in/hr.yr)" = bold,
-                "Average Observed Rate (in/hr)" = bold,
+                "Averaged Rate (in/hr)" = bold,
                 "Normalized Slope (1/yr)" = costum_format,
                 "P-value" =  costum_format_pval,
                 "SC Category" = costum_format_sc ))
@@ -349,6 +358,6 @@
     scale_y_continuous(breaks = seq(0,26, by = 1))+
     theme(panel.grid.major.y = element_line(size = 1), panel.grid.minor.y = element_blank(), text = element_text(size = 25)) + 
     scale_fill_viridis_d(direction = -1)+
-    ggtitle("Breakdown of the Infiltration Rate Residual (in/hr) Mann-Kendall Trends based on the Rings of Analysis")
+    ggtitle("Breakdown of the Infiltration Rate Residual (in/hr) Mann-Kendall Trends")
   
 
