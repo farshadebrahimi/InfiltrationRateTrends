@@ -13,6 +13,7 @@ library(forecast)
 library(lubridate)
 library(fpp2)
 library(EnvStats)
+library(readxl)
 
 # DB PG14
 con <- dbConnect(odbc::odbc(), dsn = "mars14_data", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"), MaxLongVarcharSize = 8190)
@@ -25,14 +26,20 @@ sc_metrics <- read.csv("\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\0
 #get the data scope
 data_scope <- read.csv("\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\summary_statistics\\system_seasons_for_analysis.csv")
 
+#system categories
 
+System_Categories <- read_excel("\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\System Categories\\System Categories_Long-Term Trend Analysis.xlsx")
+
+#retain categories
+System_Categories_trend <- System_Categories %>%
+  select(system_id = `System ID`, categories = `SC Category for Trend Analysis`)
+  
 #get the rain event time and date
 
 smp_radarcell <- dbGetQuery(con, "SELECT * FROM data.tbl_radar_event")
 metric_rain <- sc_metrics %>%
   inner_join(smp_radarcell, by = "radar_event_uid" ) %>%
-  select(ow_uid, radar_event_uid, eventdatastart_edt, infiltration_inhr)
-
+  select(ow_uid, radar_event_uid, eventdatastart_edt,eventdataend_edt, infiltration_inhr)
 
 
 #add season
@@ -182,5 +189,35 @@ kendal_summary_seasonal <- output_seasonal %>%
   select(system_id, ow_uid, p_value, tau_estimate) %>%
   distinct()
 
+
 write.csv(kendal_summary_seasonal, file = "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\summary_statistics\\kendal_summary_seasonal.csv", row.names = FALSE)
+
+#add the categories
+kendal_categories <- kendal_summary_seasonal %>%
+  inner_join(System_Categories_trend, by = "system_id") %>%
+  mutate(trend = case_when(p_value < 0.05 & tau_estimate > 0 ~ "sig_positive", 
+                           p_value < 0.05 & tau_estimate < 0 ~ "sig_negative",
+                           p_value > 0.05 & tau_estimate > 0 ~ "insig_positive",
+                           p_value > 0.05 & tau_estimate < 0 ~ "insig_negative"))
+
+# Calculate the count of each trend within each category
+counts <- table(kendal_categories$categories, kendal_categories$trend)
+
+# Convert the counts into a dataframe
+counts_df <- as.data.frame.matrix(counts)
+
+# Reshape the dataframe for plotting
+counts_df <- as.data.frame(counts_df)
+counts_df$category <- row.names(counts_df)
+counts_df <- tidyr::gather(counts_df, key = "trend", value = "count", -category)
+
+# Create the stacked bar chart
+ggplot(counts_df, aes(x = category, y = count, fill = trend)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Category", y = "Count", fill = "Trend")+
+  scale_y_continuous(breaks = seq(0,15, by = 1))+
+  theme(panel.grid.major.y = element_line(size = 1))+
+  ggtitle("Break Down of the Trends based on SC categories")
+
+
 
