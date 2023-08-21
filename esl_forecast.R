@@ -1,4 +1,5 @@
-#ESL FORECAST-Running ARIMA and HoltWinters for the infiltration rates and comparing performance levels
+#ESL FORECAST-Running Theil-sen, ARIMA and HoltWinters for the infiltration rates and comparing performance levels
+#Create and save three compartment plots
 # Farshad Ebrahimi, 7/20/2023
 
 library(dplyr)
@@ -13,12 +14,25 @@ library(DBI)
 library(tidyverse)
 library(TSstudio)
 library(EnvStats)
+library(mblm)
+library(gganimate)
+library(ggpubr)
+library(plotly)
+library(boot)
+library(formattable)
+library(plyr)
+
 
 
 options(scipen = 999)
 
 # DB PG14
 con <- dbConnect(odbc::odbc(), dsn = "mars14_data", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"), MaxLongVarcharSize = 8190)
+
+### greenit tables for completion date to estimate age of smp
+smpbdv <- dbGetQuery(con, "SELECT * from external.tbl_smpbdv")
+cipit <- dbGetQuery(con, "SELECT * from external.tbl_cipit_project")
+
 
 # Residuals and model stats from Brian
 infil_temp_models <- dbGetQuery(con, "SELECT * FROM metrics.tbl_infil_temp_models where model_type = 'linear'")
@@ -79,7 +93,7 @@ negative_slope_ow <- output %>%
   infil_esl_data <- infil_temp_models %>%
     filter(ow_uid %in% negative_slope_ow$ow_uid) %>%
     inner_join(ow, by = "ow_uid") %>%
-    select(ow_uid, smp_id, eventdatastart_edt, infiltration_inhr, residual) %>%
+    select(ow_uid, smp_id, eventdatastart_edt, infiltration_inhr, fitted_value, residual) %>%
     na.omit()
   
   
@@ -139,6 +153,143 @@ negative_slope_ow <- output %>%
   plot(forecast_values_arima)
   accuracy(forecast_values_arima, ts_data_real)
 
+  
+  
+  #Create theil sen model plots
+  ow_list <- infil_esl_data %>%
+    select(smp_id, ow_uid) %>%
+    distinct()
+  
+  for(i in 1:nrow(ow_list)) {
+    
+    temp <- infil_esl_data %>%
+      filter(ow_uid == ow_list[i,]$ow_uid) 
+    
+    theilson <- output %>%
+      filter(ow_uid == ow_list[i,]$ow_uid)
+    
+    #Theil-Sen model
+    # temp_theilsen <- temp
+    # temp_theilsen$eventdatastart_edt <- as.numeric(temp_theilsen$eventdatastart_edt)
+    # model= mblm(infiltration_inhr ~ eventdatastart_edt, data=temp_theilsen)
+    # summary(model)
+    # Sum = summary(model)$coefficients
+    
+    
+    infil_plot <- ggplot(temp, aes(temp$eventdatastart_edt, temp$infiltration_inhr))+
+        geom_point()+
+        labs(x = "", y = "Raw Inf. Rate (in/hr)")+
+        geom_point(col = "black") +
+      theme(axis.text.x = element_text(size = 12),
+            axis.title.x = element_text(size = 14),
+            axis.text.y = element_text(size = 11),
+            axis.title.y = element_text(size = 11),
+            legend.position = "top",
+            title = element_text(size = 16),
+            legend.text = element_text(size = 10),
+            legend.title = element_text(size = 12))+
+        #geom_abline(intercept = Sum[1], slope = Sum[2], color="blue", size=1.2) +
+        ggtitle(paste0("Theil-Sen Model Fitting of Infiltration Rates (in/hr) VS Time for ", "SMP_ID = " , ow_list[i,]$smp_id," ( OW_UID = ",ow_list[i,]$ow_uid,")"))
+    
+    fit_plot <- ggplot(temp, aes(temp$eventdatastart_edt, temp$fitted_value))+
+      geom_point()+
+      theme(axis.text.x = element_text(size = 12),
+            axis.title.x = element_text(size = 14),
+            axis.text.y = element_text(size = 11),
+            axis.title.y = element_text(size = 11),
+            legend.position = "top",
+            title = element_text(size = 16),
+            legend.text = element_text(size = 10),
+            legend.title = element_text(size = 12))+
+      geom_point(col = "blue") +
+      labs(x = "", y = "Fitted Inf. Rate (in/hr) by Temperature")
+
+    resid_plot <- ggplot(temp, aes(temp$eventdatastart_edt, temp$residual))+
+      geom_point()+
+      geom_point(col = "red") +
+      theme(axis.text.x = element_text(size = 12),
+            axis.title.x = element_text(size = 14),
+            axis.text.y = element_text(size = 11),
+            axis.title.y = element_text(size = 11),
+            legend.position = "top",
+            title = element_text(size = 16),
+            legend.text = element_text(size = 10),
+            legend.title = element_text(size = 12))+
+      geom_abline(intercept = theilson$intercept_estimate, slope = theilson$slope_estimate, color="blue", size=1.2) +
+      labs(x = "Time", y = "Residual Inf. Rate (in/hr)")
+
+    
+      plot <- ggarrange(infil_plot, fit_plot, resid_plot, ncol = 1, nrow = 3)
+    
+      #ggplot2::ggsave( paste0("//pwdoows/oows/Watershed Sciences/GSI Monitoring/06 Special Projects/52 Long-Term GSI Performance Trends/Analysis/Theil-Sen Plots", "/", paste(ow_list[i,]$smp_id, ow_list[i,]$ow_uid, sep = "_"),".png"), plot = plot, width = 14, height = 8)
+      
+  }
+  
+  ### estimate system age 
+  ow_list <- smpbdv %>%
+    inner_join(cipit, by = "worknumber") %>%
+    inner_join(ow_list, by = "smp_id") %>%
+  select(smp_id, ow_uid, construction_complete_date)
+  
+  
+  
+  
+  ### Estimate ESLs based on Theil-Sen, get the average of infiltration rate after removing outliers and devide by slope
+  esl_estimates <- infil_esl_data %>%
+    inner_join(output, by = "ow_uid") %>%
+    select(smp_id, ow_uid, eventdatastart_edt, infiltration_inhr, slope_estimate)
+  
+  esl_df <- ow_list
+  esl_df["years_span_from_built"] <- NA
+  esl_df["years_to_zero"] <- NA
+  esl_df["final_esl_yr"] <- NA
+  
+  final_df <- esl_df[0,] %>%
+    select(-construction_complete_date)
+  
+  for (i in 1:nrow(ow_list)) {
+    
+    temp <- esl_estimates %>%
+      filter(ow_uid == ow_list[i,]$ow_uid) 
+    
+    temp$years_span_from_built <- as.numeric(as.Date(max(temp$eventdatastart_edt))-ow_list[i,]$construction_complete_date)/365
+    temp$years_to_zero <- abs(mean(temp$infiltration_inhr)/temp[1,]$slope_estimate)/(365*24*60*60)
+    temp$final_esl_yr <- temp$years_span_from_built + temp$years_to_zero 
+    
+    temp <- temp %>%
+      select(smp_id, ow_uid, years_span_from_built, years_to_zero, final_esl_yr) %>%
+      distinct
+    
+    final_df <- rbind(final_df, temp)
+    
+  }
+  
+  final_df <- final_df %>%
+    inner_join(ow_list, by = c("smp_id", "ow_uid"))
+  
+  ### bootstrapping
+  #define function to calculate mean
+  meanFunc <- function(x,i){mean(x[i])}
+  
+  # calculate standard error using 100 bootstrapped samples
+  boot(final_df$final_esl_yr, meanFunc, 1000)
+  
+  
+  
+  # Round numbers
+  final_df$final_esl_yr <- round_any(final_df$final_esl_yr, 0.01)
+  
+  # Trimming 
+  memo_table <- final_df %>%
+    arrange(final_esl_yr) %>%
+    select(`SMP ID` = smp_id, `Construction Date` = construction_complete_date, `Infiltration Rate to Zero (Years)`= final_esl_yr) 
+    
+  
+
+  
+  # Generate the table using formattable
+  formattable(memo_table, align = c("c", "c", "c"))
+  
   
   
   
