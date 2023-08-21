@@ -95,7 +95,7 @@ lm_list <- list()
 temp_metrics <- list()
 
 # folder location for plots
-graph_fold <- "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\prelim_graphs\\Regression Models\\"
+graph_fold <- "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\Theil-Sen Plots\\"
 
 ##### 2.2 Loop for all ows #####
 for(j in 1:length(ows)){
@@ -384,8 +384,8 @@ model_df$batch_uid <- new_batch
 # for(i in 1:nrow(ex_models)){ ex_models$hash[i] <- hash(paste(ex_models[i,], collapse = ""))}
 
 
-write_results <- dbWriteTable(mars_con,
-                              DBI::SQL("metrics.tbl_infil_temp_models"),
-                              model_df,
-                              append = TRUE,
-                              row.names = FALSE)
+# write_results <- dbWriteTable(mars_con,
+#                               DBI::SQL("metrics.tbl_infil_temp_models"),
+#                               model_df,
+#                               append = TRUE,
+#                               row.names = FALSE)
