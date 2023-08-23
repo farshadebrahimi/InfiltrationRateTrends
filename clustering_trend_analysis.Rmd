@@ -1,0 +1,96 @@
+---
+title: "clustering_trend_analysis"
+author: "Farshad Ebrahimi"
+date: '2023-08-21'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#create negate of %in%
+`%!in%` = Negate(`%in%`)
+```
+
+## R Markdown to cluster the SMPs
+
+```{r cars}
+# Script to cluster the SMP population based on Loading ratio, location, type, age of system, Connected to surface SMP (Y/N)
+# for stratified sampling. Goal is to develop a representative sample for the trend analysis.
+# Author: Farshad Ebrahimi
+# Last updated: 8/17/2023
+# Project: Long-term trend analysis
+
+# Libraries 
+  library(odbc)
+  library(ggplot2)
+  library(stats)
+  library(lubridate)
+  library(DBI)
+  library(tidyverse)
+  library(data.table)
+  
+# DB PG14
+  con <- dbConnect(odbc::odbc(), dsn = "mars14_data", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"), MaxLongVarcharSize = 8190)
+  
+  
+ #db for SMP polygons
+  gis_apps <- paste0("MSSQL:server=PWDGISSQL;",
+                          "database=GIS_APPS;",
+                          "UID=gisread;",
+                          "PWD=gisread;")
+  
+  sysbdv <- dbGetQuery(con,"SELECT * FROM external.tbl_systembdv")
+  smpbdv <- dbGetQuery(con,"SELECT * FROM external.tbl_smpbdv") %>%
+    select(system_id, smp_pretreatment) %>%
+    distinct()
+
+  cipit <- dbGetQuery(con, "SELECT * FROM  external.tbl_cipit_project")
+  unmonitored_list <- dbGetQuery(con, "SELECT * FROM fieldwork.viw_unmonitored_postcon_on")
+  
+  sys_neighborhood <- dbGetQuery(con, "SELECT * FROM admin.tbl_sys_address") %>%
+    select(system_id, neighborhood) %>%
+    distinct()
+
+  # filter for categories relevant to the trend analysis
+  
+  sysbdv_ta <- sysbdv %>%
+    filter(sys_modelinputcategory == "Subsurface slow release (unlined)" | sys_modelinputcategory == "Subsurface infiltration" | sys_modelinputcategory == "Bioinfiltration") 
+  
+  # join the systems with CIPIT table to get estimated age
+  
+  sysbdv_ta <- sysbdv_ta %>%
+    inner_join(cipit, by = "worknumber")
+  
+  
+  # pc_ntp_date field is the most complete column to use as a proxy of system age. To correct it, we subtract 2 from it to reflect the actual system age. 
+  
+  sysbdv_clustervar <- sysbdv_ta %>% 
+    filter(!is.na(construction_start_date)) %>%
+    mutate(sys_age_yr = as.numeric((Sys.Date() - construction_start_date)/365) - 2 ) %>%
+    filter(sys_age_yr > 0 ) %>%
+    filter(is.na(sys_notbuiltretired)) %>%
+    select(system_id, sys_lrtotalda_ft2, sys_modelinputcategory, sys_age_yr) %>%
+    left_join(sys_neighborhood, by = "system_id")
+  
+  # Mutate the pretreatment type
+  
+  sysbdv_clustervar <- sysbdv_clustervar %>%
+    inner_join(smpbdv, by = "system_id")
+    
+  
+  # Filter for upstream smp
+  output <- sysbdv_clustervar[sysbdv_clustervar$smp_pretreatment %like% "Upstream SMP", ]
+  
+  # Make the upstream smp pretreatment binary (1 for presence)
+  sysbdv_clustervar <- sysbdv_clustervar %>%
+    mutate(smp_pretreatment = case_when(system_id %in% output$system_id ~ 1,
+                                        system_id %!in% output$system_id ~ 0))
+      
+  
+  
+  
+  
+  
+```
+
