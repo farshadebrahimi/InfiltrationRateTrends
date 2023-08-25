@@ -29,6 +29,8 @@ knitr::opts_chunk$set(echo = TRUE)
   library(DBI)
   library(tidyverse)
   library(data.table)
+  library(stats) # kmeans clustering
+  library(factoextra) 
   
 # DB PG14
   con <- dbConnect(odbc::odbc(), dsn = "mars14_data", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"), MaxLongVarcharSize = 8190)
@@ -44,34 +46,33 @@ knitr::opts_chunk$set(echo = TRUE)
   smpbdv <- dbGetQuery(con,"SELECT * FROM external.tbl_smpbdv") %>%
     select(system_id, smp_pretreatment) %>%
     distinct()
+  sys_gage <- dbGetQuery(con, "SELECT admin.fun_smp_to_system(smp_id) as system_id, gage_uid FROM admin.tbl_smp_gage") %>%
+    distinct()
 
   cipit <- dbGetQuery(con, "SELECT * FROM  external.tbl_cipit_project")
   unmonitored_list <- dbGetQuery(con, "SELECT * FROM fieldwork.viw_unmonitored_postcon_on")
   
-  sys_neighborhood <- dbGetQuery(con, "SELECT * FROM admin.tbl_sys_address") %>%
-    select(system_id, neighborhood) %>%
-    distinct()
+
 
   # filter for categories relevant to the trend analysis
   
   sysbdv_ta <- sysbdv %>%
-    filter(sys_modelinputcategory == "Subsurface slow release (unlined)" | sys_modelinputcategory == "Subsurface infiltration" | sys_modelinputcategory == "Bioinfiltration") 
+    filter(sys_modelinputcategory == "Subsurface slow release (unlined)" | sys_modelinputcategory == "Subsurface infiltration" | sys_modelinputcategory == "Bioinfiltration") %>%
+    inner_join(sys_gage, by = "system_id")
   
   # join the systems with CIPIT table to get estimated age
   
   sysbdv_ta <- sysbdv_ta %>%
-    inner_join(cipit, by = "worknumber")
-  
-  
-  # pc_ntp_date field is the most complete column to use as a proxy of system age. To correct it, we subtract 2 from it to reflect the actual system age. 
+    inner_join(cipit, by = "worknumber") 
+  # pc_ntp_date field is the most complete column to use as a proxy of system age. To correct it, we subtract 1 from it to reflect the actual system age. 
   
   sysbdv_clustervar <- sysbdv_ta %>% 
     filter(!is.na(construction_start_date)) %>%
-    mutate(sys_age_yr = as.numeric((Sys.Date() - construction_start_date)/365) - 2 ) %>%
+    mutate(sys_age_yr = as.numeric((Sys.Date() - construction_start_date)/365) - 1 ) %>%
     filter(sys_age_yr > 0 ) %>%
     filter(is.na(sys_notbuiltretired)) %>%
     select(system_id, sys_lrtotalda_ft2, sys_modelinputcategory, sys_age_yr) %>%
-    left_join(sys_neighborhood, by = "system_id")
+    inner_join(sys_gage, by = "system_id") 
   
   # Mutate the pretreatment type
   
@@ -87,10 +88,43 @@ knitr::opts_chunk$set(echo = TRUE)
     mutate(smp_pretreatment = case_when(system_id %in% output$system_id ~ 1,
                                         system_id %!in% output$system_id ~ 0))
       
-  
-  
-  
-  
-  
+
 ```
 
+After preparing the variables, we need to scale the them, find the optimum number of clusters and perform clustering using kmeans function from the stats package.
+
+```{r}
+# scale numeric columns
+sysbdv_df <- sysbdv_clustervar
+sysbdv_clustervar[,c(2,4)] <- scale(sysbdv_clustervar[,c(2,4)])
+sysbdv_clustervar <- na.omit(sysbdv_clustervar)
+
+
+
+#Elbow method
+#number of clusters
+elbow_lined_fig <- fviz_nbclust(sysbdv_clustervar[,c(2,4,6)], kmeans, method = "wss")
+
+cluster_solution <- kmeans(sysbdv_clustervar[,c(2,4,6)], centers = 2)
+
+# Store the cluster assignments back into the clustering data frame object
+sysbdv_df$cluster <-factor(cluster_solution$cluster) 
+
+# Look at the distribution of cluster assignments
+table(sysbdv_df$cluster)
+
+
+```
+
+```{r}
+
+stratified_sample_0.1 <- sysbdv_df %>%
+     group_by(sys_modelinputcategory, cluster, gage_uid) %>%
+     sample_frac(size= 0.1)
+
+```
+
+```{r}
+
+
+```
