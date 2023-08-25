@@ -48,9 +48,10 @@ knitr::opts_chunk$set(echo = TRUE)
     distinct()
   sys_gage <- dbGetQuery(con, "SELECT admin.fun_smp_to_system(smp_id) as system_id, gage_uid FROM admin.tbl_smp_gage") %>%
     distinct()
-
+  project_bdv <- dbGetQuery(con, "SELECT * from external.tbl_projectbdv")
   cipit <- dbGetQuery(con, "SELECT * FROM  external.tbl_cipit_project")
   unmonitored_list <- dbGetQuery(con, "SELECT * FROM fieldwork.viw_unmonitored_postcon_on")
+  
   
 
 
@@ -58,13 +59,10 @@ knitr::opts_chunk$set(echo = TRUE)
   
   sysbdv_ta <- sysbdv %>%
     filter(sys_modelinputcategory == "Subsurface slow release (unlined)" | sys_modelinputcategory == "Subsurface infiltration" | sys_modelinputcategory == "Bioinfiltration") %>%
-    inner_join(sys_gage, by = "system_id")
-  
-  # join the systems with CIPIT table to get estimated age
-  
-  sysbdv_ta <- sysbdv_ta %>%
     inner_join(cipit, by = "worknumber") 
-  # pc_ntp_date field is the most complete column to use as a proxy of system age. To correct it, we subtract 1 from it to reflect the actual system age. 
+
+    
+  # construction_start_date field is the most complete column to use as a proxy of system age. To correct it, we subtract 1 from it to reflect the actual system age. 
   
   sysbdv_clustervar <- sysbdv_ta %>% 
     filter(!is.na(construction_start_date)) %>%
@@ -121,10 +119,5 @@ table(sysbdv_df$cluster)
 stratified_sample_0.1 <- sysbdv_df %>%
      group_by(sys_modelinputcategory, cluster, gage_uid) %>%
      sample_frac(size= 0.1)
-
-```
-
-```{r}
-
 
 ```
