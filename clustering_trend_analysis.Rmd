@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## R Markdown to cluster the SMPs
 
-```{r cars}
+```{r }
 # Script to cluster the SMP population based on Loading ratio, location, type, age of system, Connected to surface SMP (Y/N)
 # for stratified sampling. Goal is to develop a representative sample for the trend analysis.
 # Author: Farshad Ebrahimi
