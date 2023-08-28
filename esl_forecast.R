@@ -21,6 +21,8 @@ library(plotly)
 library(boot)
 library(formattable)
 library(plyr)
+library("ggrepel")
+
 
 
 
@@ -279,16 +281,33 @@ negative_slope_ow <- output %>%
   # Round numbers
   final_df$final_esl_yr <- round_any(final_df$final_esl_yr, 0.01)
   
+  final_df <- final_df %>%
+    inner_join(smpbdv, by = "smp_id")
+    
   # Trimming 
   memo_table <- final_df %>%
     arrange(final_esl_yr) %>%
-    select(`SMP ID` = smp_id, `Construction Date` = construction_complete_date, `Infiltration Rate to Zero (Years)`= final_esl_yr) 
+    select(`SMP ID` = smp_id, Type = smp_smptype.x ,`Construction Date` = construction_complete_date, `Infiltration Rate to Zero (Years)`= final_esl_yr) 
+  
+  final_df <- final_df %>%
+    arrange(final_esl_yr) 
+
+  ggplot(final_df, aes(x=factor(smp_id, level=final_df$smp_id), y=final_esl_yr)) +
+    geom_point( size = 4) +
+    geom_hline(yintercept= mean(final_df$final_esl_yr), linetype="dashed", 
+               color = "red", size=2) +
+    scale_y_continuous(breaks = seq(0, 150, by = 10)) +
+    labs(x = "SMP ID", y = "Infiltration Rate to Zero (Years)") +
+    theme(panel.grid.major.y = element_line(size = 1), panel.grid.minor.y = element_blank(), text = element_text(size = 20)) +
+    geom_text(x= "9-1-1", y=50, label="Average = 43.86 Years", size = 8 )
     
+    
+  
   
 
   
   # Generate the table using formattable
-  formattable(memo_table, align = c("c", "c", "c"))
+  formattable(memo_table, align = c("c", "c", "c", "c"))
   
   
   
