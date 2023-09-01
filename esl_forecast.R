@@ -21,7 +21,7 @@ library(plotly)
 library(boot)
 library(formattable)
 library(plyr)
-library("ggrepel")
+library(ggrepel)
 
 
 
