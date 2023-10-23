@@ -127,6 +127,63 @@ new_storms <- new_storms %>% dplyr::left_join(metrics[,c("ow_event","system_id",
 metrics <- rbind(metrics_keep, new_storms)
 
 
+# prepare metrics for one time write to the database
+new_batch <- dbGetQuery(mars_con, "select max(batch_uid) from metrics.tbl_infiltration") %>% as.integer + 1
+
+metrics_write <- metrics %>% dplyr::select(ow_uid,infiltration_inhr,radar_event_uid, infiltration_error) %>%
+                 dplyr::mutate(infiltration_rate_inhr = infiltration_inhr) %>%
+                 dplyr::mutate(error_lookup_uid = infiltration_error) %>%
+                 dplyr::mutate(simulated = FALSE) %>%
+                 dplyr::mutate(batch_uid = new_batch) %>%
+                 dplyr::select(-infiltration_error, -infiltration_inhr)
+  
+
+# grab batch 1
+batch_1 <- dbGetQuery(mars_con, "select * from metrics.tbl_infiltration
+                      where batch_uid = 1")
+
+# batch_2 <- dbGetQuery(mars_con, "select * from metrics.tbl_infiltration
+                      # where batch_uid = 2")
+
+batch_4 <- dbGetQuery(mars_con, "select * from metrics.tbl_infiltration
+                      where batch_uid = 4")
+
+# create key, anti-join
+batch_1 <- batch_1 %>% dplyr::mutate(ow_event = paste0(ow_uid,"-",radar_event_uid))
+# batch_2 <- batch_2 %>% dplyr::mutate(ow_event = paste0(ow_uid,"-",radar_event_uid))
+batch_4 <- batch_4 %>% dplyr::mutate(ow_event = paste0(ow_uid,"-",radar_event_uid))
+
+batch_1 %>% dplyr::select(ow_event) %>% duplicated %>% sum
+# batch_2 %>% dplyr::select(ow_event) %>% duplicated %>% sum
+batch_4 %>% dplyr::select(ow_event) %>% duplicated %>% sum
+
+metrics_write <- metrics_write %>% dplyr::mutate(ow_event = paste0(ow_uid,"-",radar_event_uid))
+
+metrics_write <- metrics_write %>% anti_join(batch_1, by = 'radar_event_uid') %>%
+                  # anti_join(batch_2, by = 'radar_event_uid') %>%
+                  anti_join(batch_4, by = 'radar_event_uid')
+
+
+
+# set columns in correct order, ditch unnecessary joiner; remove -1000 errors
+metrics_write$snapshot_uid <- NA
+batch_1 <- batch_1 %>%  dplyr::select(-infiltration_uid)
+colnames(batch_1)
+colnames(metrics_write)
+mertrics_write <- metrics_write[,colnames(batch_1)]
+metrics_write <- metrics_write %>%
+                  dplyr::select(-ow_event) %>%
+                  dplyr::filter(error_lookup_uid != -1000 | is.na(error_lookup_uid))
+
+
+write_results <- dbWriteTable(mars_con,
+                              DBI::SQL("metrics.tbl_infiltration"),
+                              metrics_write,
+                              append = TRUE,
+                              row.names = FALSE)
+
+
+
 ##### 2.2 grab monitoring periods; add to existing metrics #####
 
 monitoring_periods <- monitoring_periods %>% mutate(deploy_days = gsub(deploy_days, pattern = " day.*", replacement = "")) %>% 
