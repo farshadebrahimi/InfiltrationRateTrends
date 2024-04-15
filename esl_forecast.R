@@ -20,7 +20,6 @@ library(ggpubr)
 library(plotly)
 library(boot)
 library(formattable)
-library(plyr)
 library(ggrepel)
 
 
@@ -29,7 +28,7 @@ library(ggrepel)
 options(scipen = 999)
 
 # DB PG14
-con <- dbConnect(odbc::odbc(), dsn = "mars14_data", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"), MaxLongVarcharSize = 8190)
+con <- dbConnect(odbc::odbc(), dsn = "mars14_datav2", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"), MaxLongVarcharSize = 8190)
 
 ### greenit tables for completion date to estimate age of smp
 smpbdv <- dbGetQuery(con, "SELECT * from external.tbl_smpbdv")
@@ -287,22 +286,27 @@ negative_slope_ow <- output %>%
   # Trimming 
   memo_table <- final_df %>%
     arrange(final_esl_yr) %>%
-    select(`SMP ID` = smp_id, Type = smp_smptype.x ,`Construction Date` = construction_complete_date, `Infiltration Rate to Zero (Years)`= final_esl_yr) 
+    select(`SMP ID` = smp_id, Type = smp_smptype ,`Construction Date` = construction_complete_date, `Infiltration Rate to Zero (Years)`= final_esl_yr) 
   
   final_df <- final_df %>%
     arrange(final_esl_yr) 
 
-  ggplot(final_df, aes(x=factor(smp_id, level=final_df$smp_id), y=final_esl_yr)) +
-    geom_point( size = 4) +
+  final_plot <- ggplot(final_df, aes(x=factor(smp_id, level=final_df$smp_id), y=final_esl_yr)) +
     geom_hline(yintercept= mean(final_df$final_esl_yr), linetype="dashed", 
                color = "red", size=2) +
+    geom_hline(yintercept= median(final_df$final_esl_yr), linetype="dashed", 
+               color = "blue", size=2) +
+    geom_point( size = 4.5) +
     scale_y_continuous(breaks = seq(0, 150, by = 10)) +
     labs(x = "SMP ID", y = "Infiltration Rate to Zero (Years)") +
     theme(panel.grid.major.y = element_line(size = 1), panel.grid.minor.y = element_blank(), text = element_text(size = 20)) +
-    geom_text(x= "9-1-1", y=50, label="Average = 43.86 Years", size = 8 )
+    geom_text(x= "9-1-1", y=50, label="Mean = 43.86 Years", size = 8) +
+    geom_text(x = "9-1-1", y = 32, label ="Median = 28 Years", size = 8)
     
     
-  
+  ggsave(plot = final_plot,
+         filename = "\\\\pwdoows\\OOWS\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\05 Deliverables\\02 Final Deliverables\\03 Plots\\Theil-Sen_ESL.png",
+         width = 1200, height = 648, units = "px")
   
 
   
