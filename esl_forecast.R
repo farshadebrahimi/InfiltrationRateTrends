@@ -278,7 +278,7 @@ negative_slope_ow <- output %>%
   
   
   # Round numbers
-  final_df$final_esl_yr <- round_any(final_df$final_esl_yr, 0.01)
+  final_df$final_esl_yr <- plyr::round_any(final_df$final_esl_yr, 0.01)
   
   final_df <- final_df %>%
     inner_join(smpbdv, by = "smp_id")
@@ -298,7 +298,7 @@ negative_slope_ow <- output %>%
                color = "blue", size=2) +
     geom_point( size = 4.5) +
     scale_y_continuous(breaks = seq(0, 150, by = 10)) +
-    labs(x = "SMP ID", y = "Infiltration Rate to Zero (Years)") +
+    labs(x = "SMP ID", y = "Bottom Infiltration Service Life (Years)") +
     theme(panel.grid.major.y = element_line(size = 1), panel.grid.minor.y = element_blank(), text = element_text(size = 20)) +
     geom_text(x= "9-1-1", y=50, label="Mean = 43.86 Years", size = 8) +
     geom_text(x = "9-1-1", y = 32, label ="Median = 28 Years", size = 8)
@@ -306,7 +306,7 @@ negative_slope_ow <- output %>%
     
   ggsave(plot = final_plot,
          filename = "\\\\pwdoows\\OOWS\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\05 Deliverables\\02 Final Deliverables\\03 Plots\\Theil-Sen_ESL.png",
-         width = 1200, height = 648, units = "px")
+         width = 16, height = 8.64, units = "in")
   
 
   
