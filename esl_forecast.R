@@ -294,6 +294,8 @@ negative_slope_ow <- output %>%
   final_plot <- ggplot(final_df, aes(x=factor(smp_id, level=final_df$smp_id), y=final_esl_yr)) +
     geom_hline(yintercept= mean(final_df$final_esl_yr), linetype="dashed", 
                color = "red", size=2) +
+    geom_hline(yintercept= mean(final_df$final_esl_yr), linetype="dashed", 
+               color = "red", size=1, alpha = 0.6) +
     geom_hline(yintercept= median(final_df$final_esl_yr), linetype="dashed", 
                color = "blue", size=2) +
     geom_point( size = 4.5) +
