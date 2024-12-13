@@ -29,7 +29,7 @@ library(ggrepel)
 options(scipen = 999)
 
 # DB PG14
-con <- dbConnect(odbc::odbc(), dsn = "mars14_data", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"), MaxLongVarcharSize = 8190)
+con <- dbConnect(odbc::odbc(), dsn = "mars14_datav2", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"), MaxLongVarcharSize = 8190)
 
 ### greenit tables for completion date to estimate age of smp
 smpbdv <- dbGetQuery(con, "SELECT * from external.tbl_smpbdv")

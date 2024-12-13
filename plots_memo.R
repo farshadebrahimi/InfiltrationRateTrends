@@ -15,7 +15,6 @@
   library(EnvStats)
   library(readxl)
   library(DBI)
-  library(kable)
   library(plyr)
   library(tidyverse)
   library(formattable)
@@ -27,7 +26,7 @@
   options(scipen = 999)
 
 # DB PG14
-  con <- dbConnect(odbc::odbc(), dsn = "mars14_data", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"), MaxLongVarcharSize = 8190)
+  con <- dbConnect(odbc::odbc(), dsn = "mars14_datav2", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"), MaxLongVarcharSize = 8190)
 
 # Residuals and model stats from Brian
   infil_temp_models <- dbGetQuery(con, "SELECT * FROM metrics.tbl_infil_temp_models where model_type = 'linear'")
