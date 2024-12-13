@@ -1,6 +1,8 @@
 #Mann Kendall Tests for select long term SMPs-this is normalized by water temperature
 # Farshad Ebrahimi, 6/5/2023
 
+
+library(plyr)
 library(dplyr)
 library(odbc)
 library(ggplot2)
@@ -15,16 +17,16 @@ library(fpp2)
 library(EnvStats)
 library(readxl)
 library(DBI)
-library(kable)
-library(plyr)
 library(tidyverse)
 library(formattable)
+library(htmltools)
+library(webshot)
 
 
 options(scipen = 999)
 
 # DB PG14
-con <- dbConnect(odbc::odbc(), dsn = "mars14_data", uid = Sys.getenv("shiny_uid"), pwd = Sys.getenv("shiny_pwd"), MaxLongVarcharSize = 8190)
+con <- dbConnect(odbc::odbc(), dsn = "mars14_datav2", MaxLongVarcharSize = 8190)
 
 # Residuals and model stats from Brian
 infil_temp_models <- dbGetQuery(con, "SELECT * FROM metrics.tbl_infil_temp_models where model_type = 'linear'")
@@ -38,7 +40,8 @@ design_metrics <- dbGetQuery(con, "SELECT * FROM external.tbl_systembdv")
 
 #system categories
 
-System_Categories <- read_excel("\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\System Categories\\System Categories_Long-Term Trend Analysis.xlsx")
+System_Categories <- read_excel("\\\\pwdoows\\OOWS\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\04 Analysis\\System Categories\\System Categories_Long-Term Trend Analysis.xlsx",
+                                sheet = "System Variables")
 
 #retain categories
 System_Categories_trend <- System_Categories %>%
@@ -148,7 +151,7 @@ output <- output %>%
   #TRIM AND WRITE TO csv
   temp_normalized_mk <- kendal_categories %>% 
     select(smp_id, ow_uid, slope_estimate_inhrsec = slope_estimate, intercept_estimate, tau, p_value, sc_category = categories)
-  write.csv(x = temp_normalized_mk, file = "\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\temp_normalized_mk.csv", row.names = FALSE)
+  write.csv(x = temp_normalized_mk, file = paste0("\\\\pwdoows\\oows\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\04 Analysis\\temp_normalized_mk_",Sys.Date(),".csv"), row.names = FALSE)
   
   # Calculate the count of each trend within each category
   counts <- table(kendal_categories$categories, kendal_categories$trend)
@@ -234,28 +237,66 @@ output <- output %>%
   names(table_df) <- c("SMP ID","SC Category", "Theil-Sen Slope (in/hr.yr)","Average Observed Rate (in/hr)", "Normalized Slope (1/yr)", "P-value")
   
   
+
   
   costum_format <- formatter(.tag = "span", style = function(x) style(
     display = "block", 
+    `font-weight` = "bold",
     padding = "0 4px", 
     `border-radius` = "4px", 
-    `background-color` = csscolor(gradient(as.numeric(x), 
+    `background-color` = csscolor(gradient(abs(as.numeric(x)), 
                                            customGreen0, customGreen)),
-    color = ifelse(x <= 0, "red","black")))
-  
+    # color = ifelse(x <= 0, "red","black")))
+    color = ifelse(x <= 0, "black","black")))
   
   costum_format_pval <- formatter(.tag = "span", style = function(x) style(
     display = "block", 
+    `font-weight` = "bold",
     padding = "0 4px", 
     `border-radius` = "4px", 
-    color = ifelse(x <= 0.05, "green","black")))
+    color = ifelse(x <= 0.05, "black","black")))
   
-  customGreen = "#0d6d36"
-  customGreen0 = "#DeF7E9"
-  formattable(table_df, 
-              align =c("c","c","c"),
-              list(
-                "Normalized Slope (1/yr)" = costum_format, "P-value" =  costum_format_pval ))
+  
+  customGreen = "red"
+  customGreen0 = "white"
+  
+  table_df$`Normalized Slope (1/yr)` <- round(table_df$`Normalized Slope (1/yr)`, 3)
+  table_df <- table_df %>% dplyr::arrange(`Normalized Slope (1/yr)`)
+  
+  # Add asterisk for drainage well SMP's
+  smp_ids <- c("9-1-1", "20-4-1",  "1029-1-1*", "171-2-1",
+               "8-1-1", "10-1-1", "250-1-1",
+               "18-1-1", "366-2-2", "1024-1-1*",
+               "88-1-1", "187-3-3", "20-1-1",
+               "20-8-1", "14-1-2", "9-2-1",
+               "231-2-1", "1025-1-1*", "326-1-1",
+               "1-3-1", "1-1-1", "179-5-1",
+               "211-1-2", "1006-1-1")
+  
+  table_df$`SMP ID` <- smp_ids
+  
+  memo_table <- formattable(table_df, 
+                            align =c("c","c","c"),
+                            list("SMP ID" = costum_format_pval,
+                                 "SC Category" = costum_format_pval,
+                                 "Theil-Sen Slope (in/hr.yr)" = costum_format_pval,
+                                 "Average Observed Rate (in/hr)" = costum_format_pval,
+                                 "Normalized Slope (1/yr)" = costum_format,
+                                 "P-value" =  costum_format_pval))
+  
+  # thank you: https://stackoverflow.com/questions/38833219/command-for-exporting-saving-table-made-with-formattable-package-in-r
+  export_formattable <- function(f, file, width = "100%", height = NULL, 
+                                 background = "white", delay = 0.2) {
+          w <- as.htmlwidget(f, width = width, height = height)
+          path <- html_print(w, background = background, viewer = NULL)
+          url <- paste0("file:///", gsub("\\\\", "/", normalizePath(path)))
+          webshot(url,
+                  file = file,
+                  selector = ".formattable_widget",
+                  delay = delay)
+  }
+  
+  export_formattable(memo_table, "\\\\pwdoows\\OOWS\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\05 Deliverables\\02 Final Deliverables\\03 Plots\\Theil-Sen_ESL.png")
   
   
   #### Bar chart reflecting inflow/outflow pathways 
@@ -290,6 +331,6 @@ output <- output %>%
     geom_bar(stat = "identity") +
     labs(x = "Category", y = "Count", fill = "Trend")+
     scale_y_continuous(breaks = seq(0,15, by = 1))+
-    theme(panel.grid.major.y = element_line(size = 1), panel.grid.minor.y = element_blank(), text = element_text(size = 20)) +
+    theme(panel.grid.major.y = element_line(size = 1), panel.grid.minor.y = element_blank(), text = element_text(size = 20, face = "bold")) +
     ggtitle("Breakdown of MK Trends by The Inflow/Outflow Pathways")
   

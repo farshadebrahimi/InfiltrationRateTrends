@@ -19,7 +19,7 @@ library(ggplot2)
 `%!in%` <- Negate(`%in%`)
 
 ##### 0.2 database connection ######
-mars_con <- dbConnect(odbc::odbc(), "mars14_data")
+mars_con <- dbConnect(odbc::odbc(), "mars14_datav2")
 
 
 ##### 0.3 Let's read in the power analysis fx from USGS #####
@@ -183,7 +183,7 @@ gguess <- (exist.mean + 0.01/exist.mean)
 power.WMW(group1$mkslope_inhryear,group2$mkslope_inhryear,gmratio = gguess, stacked = FALSE)
 
 
-near_miss_csv <- "\\\\pwdoows\\OOWS\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\summary_statistics\\near_miss_2023-08-30.csv"
+near_miss_csv <- "\\\\pwdoows\\OOWS\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\04 Analysis\\summary_statistics\\near_miss_2023-08-30.csv"
 near_miss <- read.csv(near_miss_csv)
 
 infil_rates <- dbGetQuery(mars_con,
@@ -217,7 +217,7 @@ power.t.test(delta = 0.2,
 
 
 # use transformed infiltration rates for a power t test
-near_miss_csv <- "\\\\pwdoows\\OOWS\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\Analysis\\summary_statistics\\near_miss_2023-08-30.csv"
+near_miss_csv <- "\\\\pwdoows\\OOWS\\Watershed Sciences\\GSI Monitoring\\06 Special Projects\\52 Long-Term GSI Performance Trends\\04 Analysis\\summary_statistics\\near_miss_2023-08-30.csv"
 near_miss <- read.csv(near_miss_csv)
 
 near_miss_10 <- near_miss %>% dplyr::filter(InfilCount >= 10)
